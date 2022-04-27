@@ -218,7 +218,7 @@ void DList::FreeRedundantNodes() {
   /* if len_ is much more small than the allocated space, 
   *  we consider redundant nodes shoule be removed */
   int capacity = n_nodes_ * kBlockSize;
-  if (capacity >= len_ * kRedundantFactor) {
+  if (capacity >= (int)(len_ * kRedundantFactor)) {
     /* remove redundant nodes from the left */
     Node *tmp = head_;
     Node *deleting = tmp;

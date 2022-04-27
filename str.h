@@ -16,13 +16,13 @@ public:
   explicit StaticString() : len_(0), buf_(nullptr) {}
 
   explicit StaticString(const char* str) : 
-    buf_(str), len_(strlen(str)) {}
+    len_(strlen(str)), buf_(str) {}
 
   // TODO need optimization
   explicit StaticString(const std::string& str) : 
-    buf_(str.data()), len_(str.size()) {}
+    len_(str.size()), buf_(str.data()) {}
 
-  StaticString(const StaticString& other) : buf_(other.buf_), len_(other.len_) {}
+  StaticString(const StaticString& other) : len_(other.len_), buf_(other.buf_) {}
 
   StaticString& operator=(const StaticString& other) {
     if (*this == other) {
@@ -161,7 +161,7 @@ public:
 
   inline uint32_t Allocated() const { return alloc_; }
 
-  inline uint32_t Available() const { Allocated() - Length() - 1; }
+  inline uint32_t Available() const { return Allocated() - Length() - 1; }
 
   inline bool Empty() const { return len_ == 0; }
 
@@ -196,12 +196,12 @@ public:
 
   char& operator[](int idx) {
     if (idx >= 0) {
-      if (idx >= len_) {
+      if (idx >= (int)len_) {
         return *(buf_ + len_);
       }
       return *(buf_ + idx);
     } else { /* minus index supported */
-      if (abs(idx) > len_) {
+      if (abs(idx) > (int)len_) {
         return *(buf_ + len_);
       } else {
         return *(buf_ + len_ + idx);
