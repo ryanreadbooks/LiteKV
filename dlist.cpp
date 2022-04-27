@@ -162,57 +162,8 @@ ElemType& DList::operator[](size_t idx) {
 }
 
 std::vector<std::string> DList::RangeAsStdStringVector() {
-  // if (Empty()) {
-  //   return {};
-  // }
-  // std::vector<std::string> values;
-  // values.reserve(len_);
-  // Node *tmp = begin_.node;
-  // ElemType *elem = begin_.ptr;
-
-  // while (tmp && tmp->occupied > 0 && elem) {
-  //   for (int i = 0; i < tmp->occupied; i++) {
-  //     values.emplace_back(elem->ToStdString());
-  //     elem++;
-  //   }
-  //   tmp = tmp->next;
-  //   if (tmp) {
-  //     elem = tmp->data;
-  //   }
-  // }
-  // return values;
   return RangeAsStdStringVector(0, (int)(len_ - 1));
 }
-
-// std::vector<std::string> DList::RangeAsStdStringVector(int start, int finish) {
-//   if (Empty() || start > finish) {
-//     return {};
-//   }
-//   finish = std::min(finish, (int)(len_ - 1));  /* make sure finish does not out of bound */
-//   std::vector<std::string> values;
-
-//   int distance = finish - start + 1;
-//   /* go to the corresponding node of the indexed item */
-//   auto package = NodeAtIndex(start);
-//   Node *tmp = std::get<0>(package);
-//   int n_cross = std::get<1>(package);
-//   int offset = std::get<2>(package);
-
-//   ElemType *elem = tmp->data + offset;
-
-//   while (tmp && tmp->occupied > 0 && elem && distance > 0) {
-//     for (int i = 0; i < tmp->occupied && distance > 0; i++) {
-//       values.emplace_back(elem->ToStdString());
-//       elem++;
-//       distance--;
-//     }
-//     tmp = tmp->next;
-//     if (tmp) {
-//       elem = tmp->data;
-//     }
-//   }
-//   return values;
-// }
 
 #define RANGE_FUNC_HELPER(funcname, rettype, sentence)                         \
   std::vector<rettype> DList::funcname(int start, int finish) {                \
@@ -248,56 +199,8 @@ RANGE_FUNC_HELPER(RangeAsDynaStringVector, ElemType, *elem);
 #undef RANGE_FUNC_HELPER
 
 std::vector<ElemType> DList::RangeAsDynaStringVector() {
-  // if (Empty()) {
-  //   return {};
-  // }
-  // std::vector<ElemType> values;
-  // values.reserve(len_);
-  // Node *tmp = begin_.node;
-  // ElemType *elem = begin_.ptr;
-
-  // while (tmp && tmp->occupied > 0 && elem) {
-  //   for (int i = 0; i < tmp->occupied; i++) {
-  //     values.emplace_back(*elem);
-  //     elem++;
-  //   }
-  //   tmp = tmp->next;
-  //   if (tmp) {
-  //     elem = tmp->data;
-  //   }
-  // }
-  // return values;
   return RangeAsDynaStringVector(0, (int)(len_ - 1));
 }
-
-// std::vector<ElemType> DList::RangeAsDynaStringVector(int start, int finish) {
-//   if (Empty() || start > finish) {
-//     return {};
-//   }
-//   finish = std::min(finish, (int)(len_ - 1));  /* make sure finish does not out of bound */
-//   std::vector<ElemType> values;
-//   int distance = finish - start + 1;
-//   /* go to the corresponding node of the indexed item */
-//   auto package = NodeAtIndex(start);
-//   Node *tmp = std::get<0>(package);
-//   int n_cross = std::get<1>(package);
-//   int offset = std::get<2>(package);
-
-//   ElemType *elem = tmp->data + offset;
-
-//   while (tmp && tmp->occupied > 0 && elem && distance > 0) {
-//     for (int i = 0; i < tmp->occupied && distance > 0; i++) {
-//       values.emplace_back(*elem);
-//       elem++;
-//       distance--;
-//     }
-//     tmp = tmp->next;
-//     if (tmp) {
-//       elem = tmp->data;
-//     }
-//   }
-//   return values;
-// }
 
 void DList::FreeNodes() {
   Node *tmp = head_;
