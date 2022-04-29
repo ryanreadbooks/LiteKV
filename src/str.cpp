@@ -18,7 +18,7 @@ void DynamicString::Append(const char *str, uint32_t addlen) {
     /* free space not enough, allocate more */
     alloc_ = uint32_t((len_ + addlen) * kBufGrowFactor + 1);
     char *tmp = (char *)realloc(buf_, alloc_);
-    if (tmp == NULL) {
+    if (tmp == nullptr) {
       return;
     }
     /* if succeed, old buf_ space will be freed by realloc */
@@ -40,18 +40,15 @@ void DynamicString::Append(const DynamicString &ds) {
 
 void DynamicString::Clear() {
   /* set buffer to zero, but do not free space */
-  if (len_ != 0) {
-    return;
-  }
-  if (alloc_ == 0) {
+  if (len_ == 0 || alloc_ == 0 || buf_ ==  nullptr) {
     return;
   }
   len_ = 0;
   memset(buf_, 0, alloc_);
+  buf_[len_] = '\0';
 }
 
 void DynamicString::Reset(const char *str, uint32_t len) {
-  Clear();
   if (buf_ == nullptr) {
     uint32_t allocated = len + 1;
     buf_ = (char *)malloc(sizeof(char) * allocated);
@@ -61,6 +58,7 @@ void DynamicString::Reset(const char *str, uint32_t len) {
     }
     alloc_ = allocated;
   }
+  Clear();
   Append(str, len);
 }
 

@@ -1,4 +1,4 @@
-#include "../str.h"
+#include "../src/str.h"
 #include <iostream>
 
 using namespace std;
@@ -18,7 +18,7 @@ int main(int argc, char const *argv[]) {
   str1.Append("hihi", 4);
   cout << "str1.Length() = " << str1.Length() << ", str1.Allocated() = " << str1.Allocated() << endl;
 
-  for (int i = 0; i <= str1.Length(); i++) {
+  for (size_t i = 0; i <= str1.Length(); i++) {
     if (str1[i] == '\0') {
       cout << "\nstr1 ends at " << i << endl;
     } else {
@@ -27,7 +27,7 @@ int main(int argc, char const *argv[]) {
   }
 
   DynamicString str3("ok\0okok", 7);
-  for (int i = 0; i < str3.Length(); i++) {
+  for (size_t i = 0; i < str3.Length(); i++) {
     if (str3[i] == '\0') {
       cout << "~";
     } else {
@@ -99,6 +99,14 @@ int main(int argc, char const *argv[]) {
   DynamicString cstr5;
   DynamicString cstr6 = func();
   cout << "cstr5 = " << cstr5 << endl;
+
+  // test reset
+  DynamicString ds1("10");
+  cout << ds1 << endl;
+  ds1.Clear();
+  cout << ds1 << endl;
+  ds1.Reset("changed");
+  cout << ds1 << endl;
 
   return 0;
 }

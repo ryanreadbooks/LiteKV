@@ -10,10 +10,9 @@ class DList;
 /* dlist is restricted to store dynamic string only */
 typedef DynamicString ElemType;
 
-const static uint16_t kBlockSize = 16;
+const static uint16_t kBlockSize = 128;
 const static uint16_t kRedundantFactor = 2;
 
-#pragma pack(4)
 struct Node {
   /* pointer to the previous node */
   Node *prev = nullptr;
@@ -81,6 +80,12 @@ public:
   std::vector<ElemType> RangeAsDynaStringVector();
 
   std::vector<ElemType> RangeAsDynaStringVector(int start, int finish);
+
+  // TODO 在指定索引位置插入元素
+
+  // TODO 删除指定索引位置的元素
+
+  // TODO 删除某个范围内的元素
 
   inline Node *Front() const { return head_; }
 

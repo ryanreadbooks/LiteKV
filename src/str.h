@@ -25,7 +25,7 @@ public:
   StaticString(const StaticString& other) : len_(other.len_), buf_(other.buf_) {}
 
   StaticString& operator=(const StaticString& other) {
-    if (*this == other) {
+    if (this == &other) {
       return *this;
     }
     // 不允许改变,所以指向同一块内存就行
@@ -145,15 +145,29 @@ public:
   DynamicString(const DynamicString &x) {
     /* construct totally new object with new allocated space */
     if (x.buf_ != nullptr) {
-      alloc_ = x.alloc_;
+      buf_ = (char *)malloc(x.alloc_);
+      memcpy(buf_, x.buf_, x.len_);
       len_ = x.len_;
-      buf_ = (char *)malloc(alloc_);
-      memcpy(buf_, x.buf_, len_);
+      alloc_ = x.alloc_;
       buf_[len_] = '\0';
     }
   }
 
-  DynamicString &operator=(const DynamicString &x) = delete;
+  DynamicString &operator=(const DynamicString &x) {
+    if (this == &x) {
+      return *this;
+    }
+    char * buf = (char *)malloc(x.alloc_);
+    if (buf != nullptr) {
+      memcpy(buf, x.buf_, x.len_);
+      alloc_ = x.alloc_;
+      len_ = x.len_;
+      buf[len_] = '\0';
+      free(buf_);
+      buf_ = buf;
+    }
+    return *this;
+  };
 
   inline const char *Data() const { return buf_; }
 
@@ -213,16 +227,34 @@ public:
     return len_ == other.len_ && memcmp(buf_, other.buf_, len_) == 0;
   }
 
+  bool operator==(const char* other) const {
+    auto l = strlen(other);
+    return len_ == l && memcmp(buf_, other, l) == 0;
+  }
+
   bool operator!=(const DynamicString& other) const {
     return len_ != other.len_ || memcmp(buf_, other.buf_, len_) != 0;
+  }
+
+  bool operator!=(const char* other) const {
+    auto l = strlen(other);
+    return len_ != l || memcmp(buf_, other, l) != 0;
   }
 
   bool operator<(const DynamicString& other) const {
     return memcmp(buf_, other.buf_, std::min(len_, other.len_)) == -1;
   }
 
+  bool operator<(const char* other) const {
+    return memcmp(buf_, other, std::min((size_t)len_, strlen(other))) == -1;
+  }
+
   bool operator>(const DynamicString& other) const {
     return memcmp(buf_, other.buf_, std::min(len_, other.len_)) == 1;
+  }
+
+  bool operator>(const char* other) const {
+    return memcmp(buf_, other, std::min((size_t)len_, strlen(other))) == 1;
   }
 
 private:

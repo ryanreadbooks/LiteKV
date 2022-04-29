@@ -16,8 +16,21 @@ int KVContainer::QueryObjectType(const Key &key) {
   return bucket.content[key]->type;
 }
 
-int KVContainer::QueryObjectType(const std::string &key) {
-  return QueryObjectType(Key(key));
+bool KVContainer::KeyExists(const Key &key) {
+  Bucket &bucket = GetBucket(key);
+  std::mutex &mtx = bucket.mtx;
+  // only lock corresponding bucket
+  LockGuard lck(mtx);
+  return bucket.content.find(key) != bucket.content.end();
+}
+
+size_t KVContainer::NumItems() const {
+  size_t cnt = 0;
+  for (const Bucket &bucket : bucket_) {
+    LockGuard bklck(bucket.mtx);
+    cnt += bucket.content.size();
+  }
+  return cnt;
 }
 
 bool KVContainer::SetInt(const Key &key, int64_t intval, uint64_t exp_time) {
@@ -152,15 +165,16 @@ bool KVContainer::ListPushAux(const Key &key, const std::string &val, bool leftp
   } else {
     ((DList *)(bucket.content[key]->ptr))->PushRight(val);
   }
+  errcode = kOkCode;
   return true;
 }
 
 DynamicString KVContainer::LeftPop(const Key& key, int& errcode) {
-  return std::move(ListPopAux(key, true, errcode));
+  return ListPopAux(key, true, errcode);
 }
 
 DynamicString KVContainer::RightPop(const Key& key, int& errcode) {
-  return std::move(ListPopAux(key, false, errcode));
+  return ListPopAux(key, false, errcode);
 }
 
 DynamicString KVContainer::ListPopAux(const Key &key, bool leftpop, int &errcode) {
@@ -169,17 +183,49 @@ DynamicString KVContainer::ListPopAux(const Key &key, bool leftpop, int &errcode
   LockGuard lck(mtx);
   if (bucket.content.find(key) == bucket.content.end()) {
     errcode = kKeyNotFoundCode;
-    return std::move(DynamicString());
+    return DynamicString();
   }
   /* key exists */
   if (bucket.content[key]->type != OBJECT_LIST) {
     errcode = kWrongTypeCode;
-    return std::move(DynamicString());
+    return DynamicString();
   }
   if (leftpop) {
-    return std::move(((DList *)((bucket.content[key])->ptr))->PopLeft());
+    return ((DList *)((bucket.content[key])->ptr))->PopLeft();
   }
-  return std::move(((DList *)((bucket.content[key])->ptr))->PopRight());
+  errcode = kOkCode;
+  return ((DList *)((bucket.content[key])->ptr))->PopRight();
+}
+
+std::vector<DynamicString> KVContainer::ListRange(const Key& key, int begin, int end, int &errcode) {
+  Bucket &bucket = GetBucket(key);
+  std::mutex &mtx = bucket.mtx;
+  LockGuard lck(mtx);
+  if (bucket.content.find(key) == bucket.content.end()) {
+    errcode = kKeyNotFoundCode;
+    return {};
+  }
+  if (bucket.content[key]->type != OBJECT_LIST) {
+    errcode = kWrongTypeCode;
+    return {};
+  }
+  /* supported negative index here */
+  DList *list = (DList *)(bucket.content[key]->ptr);
+  int list_len = (int)list->Length();
+  if (begin < 0) {
+    begin = begin + list_len;
+  }
+  if (end < 0) {
+    end = end + list_len;
+  }
+  errcode = kOkCode;
+  /* handle negative index out of range */
+  if (begin < 0 && end > 0) {
+    begin = 0;
+  } else if ((begin > 0 && end < 0) || (begin < 0 && end < 0)) {
+    return {};
+  }
+  return ((DList *)(bucket.content[key]->ptr))->RangeAsDynaStringVector(begin, end);
 }
 
 size_t KVContainer::ListLen(const Key& key, int& errcode) {
@@ -194,5 +240,69 @@ size_t KVContainer::ListLen(const Key& key, int& errcode) {
     errcode = kWrongTypeCode;
     return 0;
   }
+  errcode = kOkCode;
   return ((DList *)((bucket.content[key])->ptr))->Length();
+}
+
+DynamicString KVContainer::ListItemAtIndex(const Key& key, int index, int& errcode) {
+  Bucket &bucket = GetBucket(key);
+  std::mutex &mtx = bucket.mtx;
+  LockGuard lck(mtx);
+  if (bucket.content.find(key) == bucket.content.end()) {
+    errcode = kKeyNotFoundCode;
+    return DynamicString();
+  }
+  if (bucket.content[key]->type != OBJECT_LIST) {
+    errcode = kWrongTypeCode;
+    return DynamicString();
+  }
+  DList *list = (DList *)(bucket.content[key]->ptr);
+  /* support negative index */
+  int list_len = (int)list->Length();
+  if (index < 0) {
+    index = index + list_len;
+  }
+  if (index < 0) {
+    errcode = kFailCode;
+    return DynamicString();
+  }
+  try {
+    errcode = kOkCode;
+    return DynamicString(list->operator[](index));
+  } catch (const std::out_of_range& ex) {
+    errcode = kFailCode;
+  }
+  return DynamicString();
+}
+
+bool KVContainer::ListSetItemAtIndex(const Key &key, int index, const std::string &val, int &errcode) {
+  Bucket &bucket = GetBucket(key);
+  std::mutex &mtx = bucket.mtx;
+  LockGuard lck(mtx);
+  if (bucket.content.find(key) == bucket.content.end()) {
+    errcode = kKeyNotFoundCode;
+    return false;
+  }
+  if (bucket.content[key]->type != OBJECT_LIST) {
+    errcode = kWrongTypeCode;
+    return false;
+  }
+  DList *list = (DList *)(bucket.content[key]->ptr);
+  /* support negative index */
+  int list_len = (int)list->Length();
+  if (index < 0) {
+    index = index + list_len;
+  }
+  if (index < 0) {
+    errcode = kFailCode;
+    return false;
+  }
+  try {
+    errcode = kOkCode;
+    list->operator[](index).Reset(val);
+    return true;
+  } catch (const std::bad_alloc &ex) {
+    errcode = kFailCode;
+  }
+  return false;
 }

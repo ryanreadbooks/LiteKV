@@ -1,4 +1,4 @@
-#include "../dlist.h"
+#include "../src/dlist.h"
 #include <iostream>
 #include <unistd.h>
 
@@ -28,35 +28,37 @@ int main(int argc, char const *argv[]) {
     cout << endl;
   };
 
-  auto showrange = [](const vector<DynamicString> &range)
-  {
+  auto showrange = [](const vector<DynamicString> &range) {
     cout << "Range size = " << range.size() << " items are : ";
-    for (auto &&e : range)
-    {
-      cout << e << " ";
+    for (auto &&e : range) {
+      if (e.Empty()) {
+        cout << "nil ";
+      } else {
+        cout << e << " ";
+      }
     }
     cout << endl;
   };
 
-  auto showrange_std = [](const vector<string> &range)
-  {
+  auto showrange_std = [](const vector<string> &range) {
     cout << "Range size = " << range.size() << " items are : ";
-    for (auto &&e : range)
-    {
-      cout << e << " ";
+    for (auto &&e : range) {
+      if (e.empty()) {
+        cout << "nil ";
+      } else {
+        cout << e << " ";
+      }
     }
     cout << endl;
   };
 
-  auto traverse = [&](DList &lst, bool detail = true)
-  {
+  auto traverse = [&](DList &lst, bool detail = true) {
     cout << "++++++ Current DList status is below +++++++\n";
     if (detail) {
       auto range = lst.RangeAsStdStringVector();
       cout << "range size = " << range.size() << endl;
       cout << "lst size = " << lst.Length() << endl;
-      for (const auto &str : range)
-      {
+      for (const auto &str : range) {
         cout << str << " ";
       }
     }
@@ -98,7 +100,8 @@ int main(int argc, char const *argv[]) {
     cout << elem << " ";
   }
 
-  cout << "\n===================== DList random access test =====================\n";
+  cout << "\n===================== DList random access test "
+          "=====================\n";
   for (int i = 0; i < 25; ++i) {
     dlst.PushRight(to_string(i));
   }
@@ -125,11 +128,11 @@ int main(int argc, char const *argv[]) {
   cout << "dlst[42] = " << dlst[42] << endl;
   cout << "dlst[44] = " << dlst[44] << endl;
 
-  cout << "\n===================== Random push pop test =====================\n";
+  cout
+      << "\n===================== Random push pop test =====================\n";
   // random push and pop
   srand(time(NULL));
-  for (int i = 0; i < 100000; ++i)
-  {
+  for (int i = 0; i < 100000; ++i) {
     double option = (double)rand() / RAND_MAX;
     if (option >= 0.0 && option < 0.25) {
       dlst.PushLeft(to_string(option));
@@ -161,7 +164,7 @@ int main(int argc, char const *argv[]) {
   DList dlist2;
 
   for (int i = 0; i < 10; i++) {
-    dlist2.PushRight(to_string(i));
+    dlist2.PushLeft(to_string(i));
   }
   traverse(dlist2);
 
@@ -174,6 +177,18 @@ int main(int argc, char const *argv[]) {
     auto range2 = dlist2.RangeAsStdStringVector(0, i);
     showrange_std(range2);
   }
+
+  DList list2;
+
+  for (int i = 0; i < 5; ++i) {
+    list2.PushLeft(to_string(i));
+  }
+  for (int i = 5; i < 10; ++i) {
+    list2.PushRight(to_string(i * 2));
+  }
+
+  showrange(list2.RangeAsDynaStringVector(0, 9));
+  showrange_std(list2.RangeAsStdStringVector(0, 9));
 
   cout << "===================== End of test =====================\n";
 

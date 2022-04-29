@@ -24,6 +24,7 @@ struct Bucket {
 };
 
 const static int kOkCode = 0x02;
+const static int kFailCode = 0x03;
 const static int kKeyNotFoundCode = 0x04;
 const static int kWrongTypeCode = 0x08;
 
@@ -41,7 +42,17 @@ public:
 public:
   int QueryObjectType(const Key &key);
 
-  int QueryObjectType(const std::string &key);
+  int QueryObjectType(const std::string &key) {
+    return QueryObjectType(Key(key));
+  }
+
+  bool KeyExists(const Key &key);
+
+  bool KeyExists(const std::string& key) {
+    return KeyExists(Key(key));
+  }
+
+  size_t NumItems() const;
 
   /**
    * @brief set integer
@@ -98,7 +109,6 @@ public:
   /**
    * @brief pop item from left, valid for OBJECT_LIST type
    * 
-   * @return std::string 
    */
   DynamicString LeftPop(const Key& key, int& errcode);
 
@@ -109,7 +119,6 @@ public:
   /**
    * @brief pop item from right, valid for OBJECT_LIST type
    * 
-   * @return std::string 
    */
   DynamicString RightPop(const Key& key, int& errcode);
 
@@ -120,9 +129,12 @@ public:
   /**
    * @brief get all items from a list
    * 
-   * @return std::string 
    */
   std::vector<DynamicString> ListRange(const Key& key, int begin, int end, int& errcode);
+
+  std::vector<DynamicString> ListRange(const std::string& key, int begin, int end, int& errcode) {
+    return ListRange(Key(key), begin, end, errcode);
+  }
 
   /**
    * @brief get the number of items in a list
@@ -138,9 +150,18 @@ public:
   /**
    * @brief retrieve item at index from a list (index starting from 0)
    * 
-   * @return std::string 
    */
-  DynamicString ListItemAtIndex(const Key& key);
+  DynamicString ListItemAtIndex(const Key& key, int index, int& errcode);
+
+  DynamicString ListItemAtIndex(const std::string &key, int index, int& errcode) {
+    return ListItemAtIndex(Key(key), index, errcode);
+  }
+
+  bool ListSetItemAtIndex(const Key &key, int index, const std::string &val, int &errcode);
+
+  bool ListSetItemAtIndex(const std::string& key, int index, const std::string& val, int &errcode) {
+    return ListSetItemAtIndex(Key(key), index, val, errcode);
+  }
 
 private:
   inline Bucket &GetBucket(const Key &key) {
@@ -153,6 +174,7 @@ private:
   DynamicString ListPopAux(const Key &key, bool leftpop, int &errcode);
 
 private:
+  mutable std::mutex mtx_;
   std::array<Bucket, kBucketSize> bucket_;
 };
 

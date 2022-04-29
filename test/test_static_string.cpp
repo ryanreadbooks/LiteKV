@@ -1,7 +1,7 @@
 #include <iostream>
 #include <array>
 
-#include "../str.h"
+#include "../src/str.h"
 
 int main(int argc, char const *argv[])
 {

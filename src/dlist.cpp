@@ -92,7 +92,7 @@ ElemType DList::PopLeft() {
   /* delete from left and return value */
   if (Empty())
   {
-    return std::move(ElemType());
+    return ElemType();
   }
   ElemType* ret = begin_.ptr;
   if (begin_.ptr == end_.ptr) { /* only one element left */
@@ -121,7 +121,7 @@ ElemType DList::PopLeft() {
 ElemType DList::PopRight() {
   /* delete from right and return value */
   if (Empty()) {
-    return std::move(ElemType());
+    return ElemType();
   }
   ElemType *ret = end_.ptr;
   if (begin_.ptr == end_.ptr) { /* only one element left */
@@ -146,7 +146,7 @@ ElemType DList::PopRight() {
 
 ElemType& DList::operator[](size_t idx) {
   /* index range from [0, len_ - 1], only positive index supported */
-  if (idx >= len_) {
+  if (idx >= len_ || idx < 0) {
     throw std::out_of_range("index out of range");
   }
   if (begin_.node->occupied > idx) { 
@@ -162,7 +162,26 @@ ElemType& DList::operator[](size_t idx) {
 }
 
 std::vector<std::string> DList::RangeAsStdStringVector() {
-  return RangeAsStdStringVector(0, (int)(len_ - 1));
+  if (Empty()) {
+    return {};
+  }
+  std::vector<std::string> values;
+  values.reserve(len_);
+  Node *tmp = begin_.node;
+  ElemType *elem = begin_.ptr;
+
+  while (tmp && tmp->occupied > 0 && elem) {
+    /* all occupied nodes are need */
+    for (int i = 0; i < tmp->occupied; i++) {
+      values.emplace_back(elem->ToStdString());
+      elem++;
+    }
+    tmp = tmp->next;
+    if (tmp) {
+      elem = tmp->data;
+    }
+  }
+  return values;
 }
 
 #define RANGE_FUNC_HELPER(funcname, rettype, sentence)                         \
@@ -178,8 +197,11 @@ std::vector<std::string> DList::RangeAsStdStringVector() {
     int n_cross = std::get<1>(package);                                        \
     int offset = std::get<2>(package);                                         \
     ElemType *elem = tmp->data + offset;                                       \
+    if (tmp == begin_.node) {                                                  \
+      elem = begin_.ptr + offset;                                              \
+    }                                                                          \
     while (tmp && tmp->occupied > 0 && elem && distance > 0) {                 \
-      for (int i = 0; i < tmp->occupied && distance > 0; i++) {                \
+      while (elem != tmp->data + kBlockSize && distance > 0) {                 \
         values.emplace_back(sentence);                                         \
         elem++;                                                                \
         distance--;                                                            \
@@ -190,16 +212,34 @@ std::vector<std::string> DList::RangeAsStdStringVector() {
       }                                                                        \
     }                                                                          \
     return values;                                                             \
-  }
+  };
 
-RANGE_FUNC_HELPER(RangeAsStdStringVector, std::string, elem->ToStdString());
+RANGE_FUNC_HELPER(RangeAsStdStringVector, std::string, elem->ToStdString())
 
-RANGE_FUNC_HELPER(RangeAsDynaStringVector, ElemType, *elem);
+RANGE_FUNC_HELPER(RangeAsDynaStringVector, ElemType, *elem)
 
 #undef RANGE_FUNC_HELPER
 
 std::vector<ElemType> DList::RangeAsDynaStringVector() {
-  return RangeAsDynaStringVector(0, (int)(len_ - 1));
+  if (Empty()) {
+    return {};
+  }
+  std::vector<ElemType> values;
+  values.reserve(len_);
+  Node *tmp = begin_.node;
+  ElemType *elem = begin_.ptr;
+
+  while (tmp && tmp->occupied > 0 && elem) {
+    for (int i = 0; i < tmp->occupied; i++) {
+      values.emplace_back(*elem);
+      elem++;
+    }
+    tmp = tmp->next;
+    if (tmp) {
+      elem = tmp->data;
+    }
+  }
+  return values;
 }
 
 void DList::FreeNodes() {
@@ -248,7 +288,7 @@ void DList::FreeRedundantNodes() {
 std::tuple<Node*, int, int> DList::NodeAtIndex(size_t idx) {
   if (begin_.node->occupied > idx) {
     /* index does not need to jump cross nodes */
-    return std::make_tuple(begin_.node, 0, idx);
+    return std::make_tuple(begin_.node, -1, idx);
   }
   int diff = idx - begin_.node->occupied;
   int n_cross = diff / kBlockSize;

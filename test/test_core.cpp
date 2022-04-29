@@ -1,5 +1,5 @@
 #include <iostream>
-#include "../core.h"
+#include "../src/core.h"
 
 using namespace std;
 
@@ -7,7 +7,8 @@ int main(int argc, char const *argv[])
 {
 
   KVContainer engine;
-
+  cout << "sizeof(Key) = " << sizeof(Key) << endl;
+  cout << "sizeof(ValueObject) = " << sizeof(ValueObject) << endl;
   engine.SetInt("int1", 15260);
 
   int errcode;
