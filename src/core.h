@@ -27,11 +27,12 @@ const static int kOkCode = 0x02;
 const static int kFailCode = 0x03;
 const static int kKeyNotFoundCode = 0x04;
 const static int kWrongTypeCode = 0x08;
+const static int kOutOfRangeCode = 0x10;
 
 class KVContainer
 {
 public:
-  explicit KVContainer() {}
+  explicit KVContainer() = default;
 
   KVContainer(const KVContainer &) = delete;
 
@@ -47,6 +48,8 @@ public:
   }
 
   bool KeyExists(const Key &key);
+
+  int KeyExists(const std::vector<std::string>& keys);
 
   bool KeyExists(const std::string& key) {
     return KeyExists(Key(key));
@@ -70,6 +73,12 @@ public:
 
   bool SetString(const std::string &key, const std::string &value, uint64_t exp_time = 0);
 
+  size_t StrLen(const Key& key, int& errcode);
+
+  size_t StrLen(const std::string& key, int& errcode) {
+    return StrLen(Key(key), errcode);
+  }
+
   /**
    * @brief get integer or string, others will fail
    * 
@@ -80,7 +89,17 @@ public:
 
   bool Delete(const Key &key);
 
-  bool Delete(const std::string &key);
+  bool Delete(const std::string &key) {
+    return Delete(Key(key));
+  }
+
+  int Delete(const std::vector<std::string>& keys);
+
+  size_t  Append(const Key& key, const std::string& val, int& errcode);
+
+  size_t  Append(const std::string& key, const std::string& val, int& errcode) {
+    return Append(Key(key), val, errcode);
+  }
 
   /**
    * @brief push item into list to the left
@@ -89,6 +108,8 @@ public:
    * @return false 
    */
   bool LeftPush(const Key& key, const std::string& val, int& errcode);
+
+  size_t LeftPush(const std::string & key, const std::vector<std::string>& values, int& errcode);
 
   bool LeftPush(const std::string& key, const std::string& val, int& errcode) {
     return LeftPush(Key(key), val, errcode);
@@ -101,6 +122,8 @@ public:
    * @return false 
    */
   bool RightPush(const Key& key, const std::string& val, int& errcode);
+
+  size_t RightPush(const std::string & key, const std::vector<std::string>& values, int& errcode);
 
   bool RightPush(const std::string& key, const std::string& val, int& errcode) {
     return RightPush(Key(key), val, errcode);
@@ -170,6 +193,8 @@ private:
   }
 
   bool ListPushAux(const Key &key, const std::string &val, bool leftpush, int &errcode);
+
+  size_t ListPushAux(const Key& key, const std::vector<std::string>& values, bool leftpush, int& errcode);
 
   DynamicString ListPopAux(const Key &key, bool leftpop, int &errcode);
 

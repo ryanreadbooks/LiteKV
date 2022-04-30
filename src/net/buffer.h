@@ -32,7 +32,7 @@ public:
 
   inline size_t PrependableBytes() const { return p_reader_; }
 
-  inline char *BufferFront() { return data_.data(); }
+  inline char *BufferFront() { return &data_[0]; }
   
   std::string ReadableAsString() const { return std::string(data_.data() + p_reader_, ReadableBytes()); }
 

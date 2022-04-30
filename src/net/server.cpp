@@ -10,11 +10,11 @@
 
 using namespace std::placeholders;
 
-static InitIgnoreSigpipe ignore_sigpipe_initer;
+static InitIgnoreSigpipe sIgnoreSIGPIPEIniter;
 
 int Server::next_session_id_ = 1;
 
-Server::Server(EventLoop *loop, Engine* engine, const std::string &ip, uint16_t port) :
+Server::Server(EventLoop *loop, Engine *engine, const std::string &ip, uint16_t port) :
     loop_(loop), engine_(engine), addr_(ip, port) {
   if (loop == nullptr) {
     std::cerr << "No loop is specified for the server\n";
@@ -62,7 +62,7 @@ void Server::FreeListenSession() {
   }
 }
 
-void Server::AcceptProc(Session *session, bool& closed) {
+void Server::AcceptProc(Session *session, bool &closed) {
   /* accept incoming connection(session) and process */
   Ipv4Addr addr;
   socklen_t socklen = addr.GetSockAddrLen();
@@ -134,13 +134,13 @@ bool Server::AuxiliaryReadProc(Buffer &buffer, CommandCache &cache, int nbytes) 
 void Server::AuxiliaryReadProcParseErrorHandling(Session *session) {
   if (!session) return;
   /* Fill write buffer with error msg and send them back to client */
-  FillErrorMsg(session->write_buf, ErrType::WRONGREQ, kWrongReqMsg);
+  FillErrorMsg(session->write_buf, ErrType::WRONGREQ, "unidentified request");
   /* trigger write */
   session->SetWrite();
   loop_->epoller->ModifySession(session);
 }
 
-void Server::ReadProc(Session *session, bool& closed) {
+void Server::ReadProc(Session *session, bool &closed) {
   int fd = session->fd;
   Buffer &buffer = session->read_buf;
   CommandCache &cache = session->cache;
@@ -159,39 +159,45 @@ void Server::ReadProc(Session *session, bool& closed) {
   }
   std::cout << "received bytes = " << nbytes << std::endl;
   buffer.Append(buf, nbytes);
-  std::string ans = buffer.ReadableAsString();
-  std::cout << "Buffer => ";
-  for (auto &ch : ans) {
-    if (ch == '\r') {
-      std::cout << "\\r";
-    } else if (ch == '\n') {
-      std::cout << "\\n";
-    } else {
-      std::cout << ch;
+  auto show_buffer = [&]() {
+    std::string ans = buffer.ReadableAsString();
+    std::cout << "Buffer => ";
+    for (auto &ch : ans) {
+      if (ch == '\r') {
+        std::cout << "\\r";
+      } else if (ch == '\n') {
+        std::cout << "\\n";
+      } else {
+        std::cout << ch;
+      }
     }
-  }
-  std::cout << std::endl;
+    std::cout << std::endl;
+  };
+  show_buffer();
   /*　parse request */
   /* continue processing from cache */
   size_t parse_start_idx = buffer.BeginReadIdx();
   if (cache.inited && cache.argc > cache.argv.size()) {
     if (!AuxiliaryReadProc(buffer, cache, nbytes)) {
+      std::cout << "server.cpp-179\n";
       AuxiliaryReadProcParseErrorHandling(session);
       return;
     }
   } else { /* cache not inited or this is a brand new command request */
-parse_protocol_new_request:
-    if (*(buffer.BufferFront()) == '*') { /* a brand new command */
+    parse_protocol_new_request:
+    if (buffer.ReadStdString(1) == "*") { /* a brand new command */
       buffer.ReaderIdxForward(1);
       /* argc */
       size_t step;
       cache.argc = buffer.ReadLongAndForward(step);
       if (buffer.ReadStdString(2) != kCRLF) {
         AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
+        std::cout << "server.cpp-192\n";
         AuxiliaryReadProcParseErrorHandling(session);
         return;
       }
       if (buffer.ReadStdString(2) != kCRLF) {
+        std::cout << "server.cpp-197\n";
         AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
         AuxiliaryReadProcParseErrorHandling(session);
         return;
@@ -199,10 +205,14 @@ parse_protocol_new_request:
       buffer.ReaderIdxForward(2);
       cache.inited = true;
       if (!AuxiliaryReadProc(buffer, cache, nbytes)) {
+        std::cout << "server.cpp-205\n";
         AuxiliaryReadProcParseErrorHandling(session);
         return;
       }
     } else {
+      std::cout << "server.cpp-210\n";
+      std::cout << "buffer front = " << *(buffer.BufferFront()) << std::endl;
+      show_buffer();
       AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
       AuxiliaryReadProcParseErrorHandling(session);
       return;
@@ -220,8 +230,7 @@ parse_protocol_new_request:
     std::string handle_result = engine_->HandleCommand(cache);
     session->write_buf.Append(handle_result);
     session->SetWrite();
-    loop_->epoller->ModifySession(session);
-
+    loop_->epoller->ModifySession(session);/* FIXME no need to modify every time */
     cache.Clear();
     /* handle multiple request commands received in one read */
     if (buffer.ReadableBytes() > 0 && buffer.ReadStdString(1) == "*") {
@@ -231,45 +240,29 @@ parse_protocol_new_request:
   std::cout << "===============================" << std::endl;
 }
 
-void Server::FillErrorMsg(Buffer &buffer, ErrType errtype, const char* msg) const {
-  std::stringstream err_ss;
-  const char* errtype_str = kErrStrTable[errtype];
-  err_ss << "-" << errtype_str << ' ' << msg << kCRLF;
-  buffer.Append(err_ss.str());
+void Server::FillErrorMsg(Buffer &buffer, ErrType errtype, const char *msg) const {
+  const char *errtype_str = kErrStrTable[errtype];
+  auto err_str = "-" + std::string(errtype_str) + ' ' + msg + kCRLF;
+  buffer.Append(err_str);
 }
 
-void Server::FillResponseMsg(const Buffer &buffer, const std::string &msg) {
-
-}
-
-void Server::_DebugWriteProc(Session* session) {
-  Buffer& buffer = session->write_buf;
-  CommandCache& cache = session->cache;
-  std::stringstream resp;
-  resp << "+Server received " << cache.argc << " args, ";
-  for (auto&& arg : cache.argv) {
-    resp << arg << ' ';
-  }
-  resp << kCRLF;
-  buffer.Append(resp.str());
-}
-
-void Server::WriteProc(Session *session, bool& closed) {
+void Server::WriteProc(Session *session, bool &closed) {
   /* TODO handle write process */
   int fd = session->fd;
-  Buffer& buffer = session->write_buf;
+  Buffer &buffer = session->write_buf;
   if (buffer.ReadableBytes() <= 0) {
+    /* nothing to write */
     session->SetRead();
     loop_->epoller->ModifySession(session);
-    return; /* nothing to write */
+    return;
   }
   std::cout << "Doing write process, write buffer is => " << buffer.ReadableAsString() << std::endl;
   /* ensure all data has been sent, then unregister EPOLLOUT to this fd */
   size_t readable_bytes = buffer.ReadableBytes();
-  int nbytes = WriteFromBuf(fd, static_cast<const char*>(buffer.BeginRead()), readable_bytes);
+  int nbytes = WriteFromBuf(fd, static_cast<const char *>(buffer.BeginRead()), readable_bytes);
   std::cout << "Send " << nbytes << " bytes response to client\n";
   /* TODO optimize */
-  if (nbytes == readable_bytes) {
+  if ((size_t)nbytes == readable_bytes) {
     session->SetRead();
     loop_->epoller->ModifySession(session);
     buffer.Reset();

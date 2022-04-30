@@ -1,5 +1,6 @@
-#include "str.h"
 #include <iostream>
+#include <exception>
+#include "str.h"
 
 void DynamicString::Append(const char *str, uint32_t addlen) {
   if (buf_ == nullptr) {
@@ -77,7 +78,56 @@ void DynamicString::Shrink() {
   }
 }
 
-//TODO convert to int64 max number is 20 - 1 = 19 (negative sign should be considered)
 int64_t DynamicString::TryConvertToInt64() const {
-  return 0;
+  /* int64_max = 9223372036854775807　(19 chars)
+   * int64_min = -9223372036854775808 (20 chars)
+   * */
+  if (buf_ == nullptr) {
+    throw std::invalid_argument("can not convert null string to int");
+  }
+  if (len_ > 20) {
+    throw std::overflow_error("string length too large to convert to int");
+  }
+  char *tmp;
+  int64_t ans = strtoll(buf_, &tmp, 10);
+  /* check if number overflow */
+  if ((ans == INT64_MAX && errno == ERANGE) || (ans == INT64_MIN && errno == ERANGE)) {
+    throw std::overflow_error("number overflow");
+  }
+  if (std::to_string(ans).size() != len_) {
+    throw std::invalid_argument("can not convert full string to int");
+  }
+  return ans;
+}
+
+bool CanConvertToInt64(const std::string& str, int64_t& ans) {
+  if (str.empty() || str.size() > 20) {
+    return false;
+  }
+  try {
+    int64_t tmp = std::stoll(str);
+    if (std::to_string(tmp)== str) {
+      ans = tmp;
+      return true;
+    }
+  } catch (const std::exception& ex) {
+    return false;
+  }
+  return false;
+}
+
+bool CanConvertToInt32(const std::string& str, int& ans) {
+  if (str.empty() || str.size() > 20) {
+    return false;
+  }
+  try {
+    int tmp = std::stoi(str);
+    if (std::to_string(tmp)== str) {
+      ans = tmp;
+      return true;
+    }
+  } catch (const std::exception& ex) {
+    return false;
+  }
+  return false;
 }

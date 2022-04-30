@@ -7,7 +7,6 @@ set(SRC
     src/dlist.cpp
     src/str.cpp
     src/valueobject.cpp
-    src/engine.cpp
     )
 
 set(NET_SRC
@@ -16,6 +15,7 @@ set(NET_SRC
     src/net/server.cpp
     src/net/utils.cpp
     src/net/buffer.cpp
+    src/net/commands.cpp
     )
 
 add_executable(test_core test/test_core.cpp ${SRC})
