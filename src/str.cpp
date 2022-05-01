@@ -67,6 +67,10 @@ void DynamicString::Reset(const std::string &str) {
   Reset(str.data(), str.size());
 }
 
+void DynamicString::Reset(const DynamicString& str) {
+  Reset(str.buf_, str.len_);
+}
+
 void DynamicString::Shrink() {
   if (buf_) {
     char *tmp = (char *)realloc(buf_, len_ + 1);

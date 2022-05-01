@@ -71,6 +71,7 @@ void Server::AcceptProc(Session *session, bool &closed) {
     addr.SyncPort();
     std::cout << "accepted connection from: " << addr.ToString() << std::endl;
     char buf[64];
+    memset(buf, 0, sizeof(buf));
     snprintf(buf, sizeof buf, "*%s#%d", addr.ToString().c_str(), next_session_id_++);
     std::string sess_name = buf;
     /* create a new session for every accepted connection */

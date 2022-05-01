@@ -1,13 +1,17 @@
 #include "addr.h"
 #include "utils.h"
 
-Ipv4Addr::Ipv4Addr(uint32_t addr, uint16_t port)
-    : port_(port){
-  memset(&addr, 0, sizeof(addr));
-  addr_.sin_family = AF_INET;
-  addr_.sin_port = HostToNet16(port_);
-  InitAddrStr();
+Ipv4Addr::Ipv4Addr() {
+  memset(&addr_, 0, sizeof(addr_));
 }
+
+//Ipv4Addr::Ipv4Addr(uint32_t addr, uint16_t port)
+//    : port_(port){
+//  memset(&addr_, 0, sizeof(addr_));
+//  addr_.sin_family = AF_INET;
+//  addr_.sin_port = HostToNet16(port_);
+//  InitAddrStr();
+//}
 
 Ipv4Addr::Ipv4Addr(const std::string &ip, uint16_t port) :
     addr_str_(ip), port_(port){

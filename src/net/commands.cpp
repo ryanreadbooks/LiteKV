@@ -20,7 +20,7 @@ std::unordered_map<std::string, CommandHandler> Engine::sOpCommandMap = {
     {"decrby",    DecrByCommand}, /* TODO not supported, decrease int value by n on given key */
     /* for string */
     {"strlen",    StrlenCommand}, /* get the len of string on given key */
-    {"append",    AppendCommand}, /* TODO not supported, append value on given key */
+    {"append",    AppendCommand}, /* append value on given key */
     {"getrange",  GetRangeCommand}, /* TODO not supported, get range value on given key */
     {"setrange",  SetRangeCommand}, /* TODO not supported, set range value on given key */
     /* for list */

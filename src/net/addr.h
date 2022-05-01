@@ -10,7 +10,9 @@ class Ipv4Addr {
 public:
   typedef std::shared_ptr<Ipv4Addr> Ptr;
 
-  explicit Ipv4Addr(uint32_t addr = INADDR_ANY, uint16_t port = 0);
+  Ipv4Addr();
+
+//  explicit Ipv4Addr(uint32_t addr = INADDR_ANY, uint16_t port = 0);
 
   Ipv4Addr(const std::string &ip, uint16_t port);
 
@@ -34,8 +36,8 @@ private:
   void InitAddrStr();
 
 private:
-  std::string addr_str_;
-  uint16_t port_;
+  std::string addr_str_ = "";
+  uint16_t port_ = 0;
   struct sockaddr_in addr_;
 };
 

@@ -41,22 +41,30 @@ public:
     if (this == &other) {
       return *this;
     }
-    // 不允许改变,所以指向同一块内存就行
-    len_ = other.len_;
-    buf_ = other.buf_;
+    char *buf = (char *) malloc(other.len_ + 1);
+    if (buf != nullptr) {
+      memcpy(buf, other.buf_, other.len_);
+      len_ = other.len_;
+      buf[len_] = '\0';
+      free(buf_);
+      buf_ = buf;
+    }
     return *this;
   }
 
   ~StaticString() {
-    len_ = 0;
-    buf_ = nullptr;
+    if (buf_ != nullptr) {
+      free(buf_);
+      len_ = 0;
+      buf_ = nullptr;
+    }
   }
 
   inline size_t Length() const { return len_; }
 
   inline const char *Data() const { return buf_; }
 
-  const std::string ToStdString() const { return std::string(buf_); }
+  std::string ToStdString() const { return std::string(buf_); }
 
   bool operator==(const StaticString &other) const {
     return strcmp(buf_, other.buf_) == 0 && len_ == other.len_;
@@ -182,6 +190,10 @@ public:
     return *this;
   };
 
+  size_t Hash() const {
+    return std::hash<std::string>()(ToStdString());
+  }
+
   inline const char *Data() const { return buf_; }
 
   inline uint32_t Length() const { return len_; }
@@ -204,9 +216,11 @@ public:
 
   void Reset(const std::string &str);
 
+  void Reset(const DynamicString& str);
+
   void Shrink();
 
-  inline std::string ToStdString() {
+  inline std::string ToStdString() const {
     return std::string(buf_, len_);
   }
 

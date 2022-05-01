@@ -1,1 +1,1 @@
-# SimpleKV - A simple key-value storage implemented in C++
+# SimpleKV - A simple key-value storage

@@ -7,6 +7,7 @@ set(SRC
     src/dlist.cpp
     src/str.cpp
     src/valueobject.cpp
+    src/dict.cpp
     )
 
 set(NET_SRC
@@ -23,6 +24,8 @@ add_executable(test_core2 test/test_core2.cpp ${SRC})
 add_executable(test_dlist test/test_dlist.cpp ${SRC})
 add_executable(test_dlist2 test/test_dlist2.cpp ${SRC})
 add_executable(test_dynamic_string test/test_dynamic_string.cpp ${SRC})
+add_executable(test_dict test/test_dict.cpp ${SRC})
+add_executable(test_static_string test/test_static_string.cpp ${SRC})
 add_executable(test_server test/test_server.cpp ${SRC} ${NET_SRC})
 
 add_executable(benchmark_int benchmark/benchmark_int.cpp ${SRC})

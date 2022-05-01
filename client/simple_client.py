@@ -1,4 +1,7 @@
+import argparse
+from pickle import TRUE
 import socket
+from xmlrpc.client import TRANSPORT_ERROR
 
 # gen_command(cmd, key, [argv0, argv1, ...])
 def gen_command(cmd, key, argv):
@@ -15,10 +18,20 @@ def gen_command(cmd, key, argv):
 
   return command
 
+arg_parser = argparse.ArgumentParser(description='SimpleKV simple client')
+arg_parser.add_argument('-a', '--address', type=str, default='127.0.0.1', dest='ip', help='The ip address of the database')
+arg_parser.add_argument('-p', '--port', type=int, default=9527, dest='port', help='The port of the database')
+
+args = arg_parser.parse_args()
+
 if __name__ == '__main__':
+  connected = False;
+  ip = args.ip
+  port = args.port
   s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-  s.connect(("127.0.0.1", 9527))
+  s.connect((ip, port))
   while True:
+    print(f'{ip}:{port}> ', end='')
     inputcmd = input()
     if len(inputcmd) == 1 and inputcmd[0] == 'q':
       break;
@@ -32,10 +45,8 @@ if __name__ == '__main__':
 
     # data = gen_command('a', 'b', ['c']) + gen_command('e', 'f', ['1', 'q'])
     toserver = bytes(data, encoding='utf8')
-    # print(toserver, f'len = {len(toserver)}')
     s.sendall(toserver)
-    recv_msg = s.recv(4096)
+    recv_msg = s.recv(8192)
     print(f'Server response = {recv_msg}')
-    # input()
   
   s.close()
