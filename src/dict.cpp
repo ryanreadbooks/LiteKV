@@ -2,17 +2,15 @@
 
 int HashTable::UpdateKV(const DictKey &key, const DictKey &val) {
   uint64_t slot_idx = CalculateSlotIndex(key);
-  int added = 0;
+  int added = NEW_ADDED;
   if (table_[slot_idx] == nullptr) { /* given key nor found, create new item */
     table_[slot_idx] = new HTEntry(new DictKey(key), new DictVal(val));
-    added = NEW_ADDED;
     ++count_;
   } else {
     /* check if key is on linked list */
     HTEntry *entry = FindHTEntry(key);
     if (entry == nullptr) {
       /* add new HTEntry at the head of linked list */
-      added = NEW_ADDED;
       HTEntry *new_entry = new HTEntry(new DictKey(key), new DictVal(val));
       HTEntry *head = table_[slot_idx];
       table_[slot_idx] = new_entry;
@@ -259,7 +257,7 @@ DictVal &Dict::At(const DictKey &key) {
   throw std::out_of_range(key.ToStdString() + " not found in hashtable");
 }
 
-void Dict::PerformRehash() {
+bool Dict::PerformRehash() {
   /* rehashing implementation */
   if (backup_ht_ == nullptr) {
     size_t new_slot_size = cur_ht_->slot_size_ * kGrowFactor;
@@ -279,16 +277,24 @@ void Dict::PerformRehash() {
     }
     cur_ht_->StepRehashingIdx();
   }
-  /* check entry movement finished */
+  /* check if entry movement already finished */
   if (cur_ht_->RehashDone() && cur_ht_->EnsureAllSlotsEmpty()) {
     /* free old hashtable and set backup hashtable to new hashtable */
     delete cur_ht_;
     cur_ht_ = backup_ht_;
     backup_ht_ = nullptr;
+    return true;
   }
+  return false;
 }
 
 void Dict::RehashMoveSlots(int n) {
+  do {
+    if (PerformRehash()) {
+      break;
+    }
+    --n;
+  } while (n > 0);
 }
 
 

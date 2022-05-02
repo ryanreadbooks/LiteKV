@@ -1,7 +1,4 @@
 #include "../src/net/server.h"
-#include "../src/core.h"
-#include "../src/net/commands.h"
-
 
 int main(int argc, char const *argv[])
 {

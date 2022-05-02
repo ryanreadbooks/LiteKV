@@ -209,7 +209,7 @@ public:
   }
 
 private:
-  void PerformRehash();
+  bool PerformRehash();
 
   inline bool CheckNeedRehash() const {
     bool need_rehash = (cur_ht_->rehashing_idx_ == -1 && cur_ht_->LoadFactor() > max_load_factor_)
@@ -221,8 +221,6 @@ private:
   }
 
   void RehashMoveSlots(int n);
-
-  void CheckRehashAndPerform();
 
 private:
   /* master hashtable */

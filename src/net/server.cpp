@@ -95,7 +95,6 @@ void Server::AcceptProc(Session *session, bool &closed) {
 
 void Server::AuxiliaryReadProcCleanup(Buffer &buffer, CommandCache &cache, size_t begin_idx, int nbytes) {
   /* clear cache and clean up invalid request in buffer */
-  /* TODO 将CommandCache清除并且将buffer中的格式不合法的请求全部处理掉 */
   cache.Clear();
   buffer.Reset(); /* FIXME, should only discard invalid bytes and reserve those valid request bytes */
 }
@@ -149,7 +148,6 @@ void Server::ReadProc(Session *session, bool &closed) {
   int nbytes = ReadToBuf(fd, buf, sizeof(buf));
   if (nbytes == 0) {
     /* close connection */
-    /* TODO 删除连接处理, 资源释放等工作 */
     session->watched = false;
     buffer.Reset();
     close(fd);
@@ -180,7 +178,6 @@ void Server::ReadProc(Session *session, bool &closed) {
   size_t parse_start_idx = buffer.BeginReadIdx();
   if (cache.inited && cache.argc > cache.argv.size()) {
     if (!AuxiliaryReadProc(buffer, cache, nbytes)) {
-      std::cout << "server.cpp-179\n";
       AuxiliaryReadProcParseErrorHandling(session);
       return;
     }
@@ -193,12 +190,10 @@ void Server::ReadProc(Session *session, bool &closed) {
       cache.argc = buffer.ReadLongAndForward(step);
       if (buffer.ReadStdString(2) != kCRLF) {
         AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
-        std::cout << "server.cpp-192\n";
         AuxiliaryReadProcParseErrorHandling(session);
         return;
       }
       if (buffer.ReadStdString(2) != kCRLF) {
-        std::cout << "server.cpp-197\n";
         AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
         AuxiliaryReadProcParseErrorHandling(session);
         return;
@@ -206,13 +201,10 @@ void Server::ReadProc(Session *session, bool &closed) {
       buffer.ReaderIdxForward(2);
       cache.inited = true;
       if (!AuxiliaryReadProc(buffer, cache, nbytes)) {
-        std::cout << "server.cpp-205\n";
         AuxiliaryReadProcParseErrorHandling(session);
         return;
       }
     } else {
-      std::cout << "server.cpp-210\n";
-      std::cout << "buffer front = " << *(buffer.BufferFront()) << std::endl;
       show_buffer();
       AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
       AuxiliaryReadProcParseErrorHandling(session);
@@ -225,13 +217,12 @@ void Server::ReadProc(Session *session, bool &closed) {
     for (auto &arg : cache.argv) {
       std::cout << arg << " ";
     }
-    /* clear cache when one command is fully parsed */
-    /* TODO use command to make request to the database and organize response and reply */
     std::cout << std::endl;
     std::string handle_result = engine_->HandleCommand(cache);
     session->write_buf.Append(handle_result);
     session->SetWrite();
-    loop_->epoller->ModifySession(session);/* FIXME no need to modify every time */
+    loop_->epoller->ModifySession(session);/* FIXME no need to modify session every time */
+    /* clear cache when one command is fully parsed */
     cache.Clear();
     /* handle multiple request commands received in one read */
     if (buffer.ReadableBytes() > 0 && buffer.ReadStdString(1) == "*") {
@@ -262,7 +253,7 @@ void Server::WriteProc(Session *session, bool &closed) {
   size_t readable_bytes = buffer.ReadableBytes();
   int nbytes = WriteFromBuf(fd, static_cast<const char *>(buffer.BeginRead()), readable_bytes);
   std::cout << "Send " << nbytes << " bytes response to client\n";
-  /* TODO optimize */
+  /* FIXME optimize */
   if ((size_t)nbytes == readable_bytes) {
     session->SetRead();
     loop_->epoller->ModifySession(session);

@@ -134,13 +134,11 @@ public:
   }
 
   explicit DynamicString(const std::string &str) {
-    if (!str.empty()) {
-      alloc_ = (uint32_t) (sizeof(char) * (str.size() + 1));
-      buf_ = (char *) malloc(alloc_);
-      len_ = str.size();
-      memcpy(buf_, str.data(), len_);
-      buf_[len_] = '\0';
-    }
+    alloc_ = (uint32_t) (str.size() + 1);
+    buf_ = (char *) malloc(alloc_);
+    len_ = str.size();
+    memcpy(buf_, str.data(), len_);
+    buf_[len_] = '\0';
   }
 
   DynamicString(DynamicString &&ds) noexcept {
@@ -204,6 +202,10 @@ public:
 
   inline bool Empty() const { return len_ == 0; }
 
+  inline bool NoLenButNotNull() const { return len_ == 0 && alloc_ != 0; }
+
+  inline bool Null() const { return len_ == 0 && alloc_ == 0; }
+
   void Append(const char *str, uint32_t len);
 
   void Append(const std::string &str);
@@ -216,7 +218,7 @@ public:
 
   void Reset(const std::string &str);
 
-  void Reset(const DynamicString& str);
+  void Reset(const DynamicString &str);
 
   void Shrink();
 

@@ -108,5 +108,18 @@ int main(int argc, char const *argv[]) {
   ds1.Reset("changed");
   cout << ds1 << endl;
 
+  // test empty string and null string
+  // no memory allocated
+  DynamicString empty;
+  cout << empty.Length() << ", " << empty.Allocated() << endl;
+
+  // memory allocated even for empty str
+  DynamicString empty2("",0);
+  cout << empty2.Length() << ", " << empty2.Allocated() << endl;
+
+  // memory allocated even for empty str
+  DynamicString empty3("");
+  cout << empty3.Length() << ", " << empty3.Allocated() << endl;
+
   return 0;
 }

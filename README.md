@@ -1,1 +1,3 @@
-# SimpleKV - A simple key-value storage
+# LiteKV
+
+### LiteKV is a simple key-value storage implementation. 

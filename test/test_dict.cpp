@@ -120,6 +120,10 @@ int main() {
       cout << ex.what() << endl;
     }
   }
+  dict.Update("tv1", "video");
+  cout << dict.At("tv1") << endl;
+  dict.At("tv1") = DictVal("game");
+  cout << dict.At("tv1") << endl;
 
   cout << "============== Test Dict End ==============\n";
 

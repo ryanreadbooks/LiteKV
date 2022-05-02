@@ -5,25 +5,25 @@
 #include "commands.h"
 
 std::unordered_map<std::string, CommandHandler> Engine::sOpCommandMap = {
-    /* generic */
+    /* generic command */
     {"ping",      PingCommand},   /* ping-pong test */
     {"del",       DelCommand},    /* delete given keys */
     {"exists",    ExistsCommand}, /* check if given keys exist */
     {"type",      TypeCommand},   /* query object type */
-    /* int or string */
+    /* int or string command */
     {"set",       SetCommand},    /* set given key to string or int */
     {"get",       GetCommand},    /* get value on given key */
-    /* for int */
+    /* int command */
     {"incr",      IncrCommand},   /* TODO not supported, increase int value by 1 on given key */
     {"decr",      DecrCommand},   /* TODO not supported, decrease int value by 1 on given key */
     {"incrby",    IncrByCommand}, /* TODO not supported, increase int value by n on given key */
     {"decrby",    DecrByCommand}, /* TODO not supported, decrease int value by n on given key */
-    /* for string */
+    /* string command */
     {"strlen",    StrlenCommand}, /* get the len of string on given key */
     {"append",    AppendCommand}, /* append value on given key */
     {"getrange",  GetRangeCommand}, /* TODO not supported, get range value on given key */
     {"setrange",  SetRangeCommand}, /* TODO not supported, set range value on given key */
-    /* for list */
+    /* list command */
     {"llen",      LLenCommand},   /* get the length of list on given key */
     {"lpop",      LPopCommand},   /* left pop one value from list on given key */
     {"lpush",     LPushCommand},  /* left push values from list on given key */
@@ -33,50 +33,76 @@ std::unordered_map<std::string, CommandHandler> Engine::sOpCommandMap = {
     {"linsert",   LInsertCommand},/* TODO not supported, insert value into list on given key */
     {"lrem",      LRemCommand},   /* TODO not supported, remove element from list on given key */
     {"lsetindex", LSetCommand},   /* set element from list at index on given key  */
-    {"lindex",    LIndexCommand}  /* get element in list at index on given key */
+    {"lindex",    LIndexCommand}, /* get element in list at index on given key */
+    /* hashtable operation */
+    {"hset",      HSetCommand},   /* set field in the hash on given key to value. */
+    {"hget",      HGetCommand},   /* return the value associated with field in the hash on given key */
+    {"hdel",      HDelCommand},   /* delete specified fields in the hash on given key */
+    {"hexists",   HExistsCommand},/* check specified field exists in the hash on given key */
+    {"hgetall",   HGetAllCommand},/* get all field-value pairs in the hash on given key */
+    {"hkeys",     HKeysCommand},  /* get all fields in the hash on given key */
+    {"hvals",     HValsCommand},  /* get all values in the hash on given key */
+    {"hlen",      HLenCommand},   /* get number of field-value pairs in the hash on given key */
 };
 
+#define IfWrongTypeReturn(errcode) \
+  if (errcode == kWrongTypeCode) {  \
+    return kWrongTypeMsg; \
+  }
+
+#define IfKeyNotFoundReturn(errcode)  \
+  if (errcode == kKeyNotFoundCode) {  \
+    return kNilMsg; \
+  }
+
 // FIXME optimize syntax check
-static bool CheckSyntax(const CommandCache &cmd, int8_t n_key_required, int8_t n_operands_required) {
+static bool CheckSyntax(const CommandCache &cmd, int8_t n_key_required, int8_t n_operands_required, bool even = false) {
+  size_t len = cmd.argv.size();
+  if (even && (len & 1) != 0) {
+    return false;
+  }
   if (n_key_required == 0) {
-    return cmd.argv.size() == 1;
+    return len == 1;
   }
   if (n_key_required == 1) {
     if (n_operands_required == -1) {
-      return cmd.argv.size() >= 3;
+      return len >= 3;
     } else {
-      return cmd.argv.size() == (size_t)(n_operands_required + 2);
+      return len == (size_t) (n_operands_required + 2);
     }
-//    if (n_operands_required == 0) {
-//      return cmd.argv.size() == 2;
-//    } else if (n_operands_required == 1) {
-//      return cmd.argv.size() == 3;
-//    } else if (n_operands_required == -1) {
-//      return cmd.argv.size() >= 3;
-//    } else if (n_operands_required == 2) {
-//      return cmd.argv.size() == 4;
-//    } else {
-//      return false;
-//    }
   }
   if (n_key_required == -1) {
-    return cmd.argv.size() >= 2;
+    return len >= 2;
   }
   return false;
 }
 
-#define CheckSyntaxHelper(cmd, n_key_required, n_operands_required, errmsg) \
-if(!CheckSyntax(cmd, n_key_required, n_operands_required)) { \
-  return PackErrMsg("ERROR", errmsg);\
+#define CheckSyntaxHelper(cmd, n_key_required, n_operands_required, even, name) \
+if(!CheckSyntax(cmd, n_key_required, n_operands_required, even)) { \
+  return PackErrMsg("ERROR", "incorrect number of arguments for "#name" command");\
 }
 
-static std::string PackIntReply(int value) {
+static std::string PackIntReply(long value) {
   return kIntPrefix + std::to_string(value) + kCRLF;
+}
+
+static std::string PackBoolReply(bool yes) {
+  if (yes) {
+    return kInt1Msg;
+  }
+  return kInt0Msg;
 }
 
 static std::string PackStringValueReply(const std::string &value) {
   size_t len = value.size();
   return kStrValPrefix + std::to_string(len) + kCRLF + value + kCRLF;
+}
+
+static std::string PackStringValueReply(const DynamicString& value) {
+  if (value.Null()) {
+    return kNilMsg;
+  }
+  return kStrValPrefix + std::to_string(value.Length()) + kCRLF + value.ToStdString() + kCRLF;
 }
 
 static std::string PackStringMsgReply(const std::string &msg) {
@@ -94,8 +120,9 @@ static std::string PackArrayMsg(const std::vector<DynamicString> &array) {
   size_t len = array.size();
   arr_ss << kArrayPrefix << len << kCRLF;
   for (const auto &value : array) {
-    arr_ss << '$' << value.Length() << kCRLF
-           << value << kCRLF;
+//    arr_ss << '$' << value.Length() << kCRLF
+//           << value << kCRLF;
+    arr_ss << PackStringValueReply(value);
   }
   return arr_ss.str();
 }
@@ -131,20 +158,20 @@ bool Engine::OpCodeValid(const std::string &opcode) {
 
 std::string PingCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: ping */
-  CheckSyntaxHelper(cmds, 0, 0, "")
+  CheckSyntaxHelper(cmds, 0, 0, false, 'ping')
   return kPONGMsg;
 }
 
 std::string DelCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: del key1 key2 key3 ... */
-  CheckSyntaxHelper(cmds, -1, 0, "incorrect number of arguments for 'del' command")  /* multiple keys supported */
+  CheckSyntaxHelper(cmds, -1, 0, false, 'del')  /* multiple keys supported */
   size_t n = holder->Delete(std::vector<std::string>(cmds.argv.begin() + 1, cmds.argv.end()));
   return PackIntReply(n);
 }
 
 std::string ExistsCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: exists key1 key2 key3 ... */
-  CheckSyntaxHelper(cmds, -1, 0, "incorrect number of arguments for 'exists' command")
+  CheckSyntaxHelper(cmds, -1, 0, false, 'exists')
   auto keys = std::vector<std::string>(cmds.argv.begin() + 1, cmds.argv.end());
   int n = holder->KeyExists(keys);
   return PackIntReply(n);
@@ -153,7 +180,7 @@ std::string ExistsCommand(KVContainer *holder, const CommandCache &cmds) {
 
 std::string TypeCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: type key */
-  CheckSyntaxHelper(cmds, 1, 0, "incorrect number of arguments for 'type' command");
+  CheckSyntaxHelper(cmds, 1, 0, false, 'type');
   int obj_type = holder->QueryObjectType(cmds.argv[1]);
   if (obj_type == OBJECT_INT) {
     return PackStringMsgReply("int");
@@ -169,7 +196,7 @@ std::string TypeCommand(KVContainer *holder, const CommandCache &cmds) {
 
 std::string SetCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: set key value */
-  CheckSyntaxHelper(cmds, 1, 1, "incorrect number of arguments for 'set' command")
+  CheckSyntaxHelper(cmds, 1, 1, false, 'set')
   const std::string &key = cmds.argv[1];
   const std::string &value = cmds.argv[2];
   int64_t val;
@@ -187,7 +214,7 @@ std::string SetCommand(KVContainer *holder, const CommandCache &cmds) {
 
 std::string GetCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: get key */
-  CheckSyntaxHelper(cmds, 1, 0, "incorrect number of arguments for 'get' command")
+  CheckSyntaxHelper(cmds, 1, 0, false, 'get')
   const std::string &key = cmds.argv[1];
   int errcode = 0;
   ValueObjectPtr val = holder->Get(key, errcode);
@@ -199,83 +226,79 @@ std::string GetCommand(KVContainer *holder, const CommandCache &cmds) {
       /* string type underneath */
       return PackStringValueReply(val->ToStdString());
     }
-  } else if (errcode == kKeyNotFoundCode) {
-    return kNilMsg;
-  } else if (errcode == kWrongTypeCode) {
-    return kWrongTypeMsg;
   }
+  IfKeyNotFoundReturn(errcode)
+  IfWrongTypeReturn(errcode)
+
   return kNilMsg;
 }
 
 std::string IncrCommand(KVContainer *holder, const CommandCache &cmds) {
-  /* usage: incr key */
-  return kNotOkMsg;
+  /* TODO usage: incr key */
+  return kNotSupportedYetMsg;
 }
 
 std::string DecrCommand(KVContainer *holder, const CommandCache &cmds) {
-  /* usage: decr key */
-  return kNotOkMsg;
+  /* TODO usage: decr key */
+  return kNotSupportedYetMsg;
 }
 
 std::string IncrByCommand(KVContainer *holder, const CommandCache &) {
-  /* usage: incrby key value */
-  return kNotOkMsg;
+  /* TODO usage: incrby key value */
+  return kNotSupportedYetMsg;
 }
 
 std::string DecrByCommand(KVContainer *holder, const CommandCache &cmds) {
-  /* usage: decrby key value */
-  return kNotOkMsg;
+  /* TODO usage: decrby key value */
+  return kNotSupportedYetMsg;
 }
 
 std::string StrlenCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: strlen key */
-  CheckSyntaxHelper(cmds, 1, 0, "incorrect number of arguments for 'strlen' command")
+  CheckSyntaxHelper(cmds, 1, 0, false, 'strlen')
   const std::string &key = cmds.argv[1];
   int errcode = 0;
   size_t len = holder->StrLen(key, errcode);
   if (errcode == kOkCode) {
     return PackIntReply(len);
-  } else if (errcode == kWrongTypeCode) {
-    return kWrongTypeMsg;
   }
+  IfWrongTypeReturn(errcode)
   return PackIntReply(0);
 }
 
 std::string AppendCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: append key value */
-  CheckSyntaxHelper(cmds, 1, 1, "incorrect number of arguments for 'append' command")
+  CheckSyntaxHelper(cmds, 1, 1, false, 'append')
   const std::string &key = cmds.argv[1];
   const std::string &value = cmds.argv[2];
   int errcode;
   size_t after_len = holder->Append(key, value, errcode);
   if (errcode == kOkCode) {
     return PackIntReply(after_len);
-  } else if (errcode == kWrongTypeCode) {
-    return kWrongTypeMsg;
   }
+  IfWrongTypeReturn(errcode)
   return kNotOkMsg;
 }
 
 std::string GetRangeCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: getrange key begin end */
-  return kNotOkMsg;
+  return kNotSupportedYetMsg;
 }
 
 std::string SetRangeCommand(KVContainer *holder, const CommandCache &cmds) {
-  return kNotOkMsg;
+  return kNotSupportedYetMsg;
 }
 
 std::string LLenCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: llen key */
-  CheckSyntaxHelper(cmds, 1, 0, "incorrect number of arguments for 'llen' command");
-  const std::string& key = cmds.argv[1];
+  CheckSyntaxHelper(cmds, 1, 0, false, 'llen');
+  const std::string &key = cmds.argv[1];
   int errcode;
   size_t list_len = holder->ListLen(key, errcode);
   if (errcode == kOkCode) {
     return PackIntReply(list_len);
-  } else if (errcode == kWrongTypeCode) {
-    return kWrongTypeMsg;
   }
+  IfWrongTypeReturn(errcode)
   return PackIntReply(0);
 }
 
@@ -294,14 +317,14 @@ std::string LLenCommand(KVContainer *holder, const CommandCache &cmds) {
 
 std::string LPopCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: lpop key */
-  CheckSyntaxHelper(cmds, 1, 0, "incorrect number of arguments for 'lpop' command")
+  CheckSyntaxHelper(cmds, 1, 0, false, 'lpop')
   ListPopCommandCommon(LeftPop)
   return kNilMsg;
 }
 
 std::string RPopCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: rpop key */
-  CheckSyntaxHelper(cmds, 1, 0, "incorrect number of arguments for 'rpop' command")
+  CheckSyntaxHelper(cmds, 1, 0, false, 'rpop')
   ListPopCommandCommon(RightPop)
   return kNilMsg;
 }
@@ -321,14 +344,14 @@ std::string RPopCommand(KVContainer *holder, const CommandCache &cmds) {
 
 std::string LPushCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: lpush key value1 value2 ... */
-  CheckSyntaxHelper(cmds, 1, -1, "incorrect number of arguments for 'lpush' command")
+  CheckSyntaxHelper(cmds, 1, -1, false, 'lpush')
   ListPushCommandCommon(LeftPush)
   return kNotOkMsg;
 }
 
 std::string RPushCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: rpush key value1 value2 ... */
-  CheckSyntaxHelper(cmds, 1, -1, "incorrect number of arguments for 'rpush' command")
+  CheckSyntaxHelper(cmds, 1, -1, false, 'rpush')
   ListPushCommandCommon(RightPush)
   return kNotOkMsg;
 }
@@ -337,7 +360,7 @@ std::string RPushCommand(KVContainer *holder, const CommandCache &cmds) {
 
 std::string LRangeCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: lrange key begin end */
-  CheckSyntaxHelper(cmds, 1, 2, "incorrect number of arguments for 'lrange' command")
+  CheckSyntaxHelper(cmds, 1, 2, false, 'lrange')
   const std::string &key = cmds.argv[1];
   const std::string &begin = cmds.argv[2];
   const std::string &end = cmds.argv[3];
@@ -352,34 +375,34 @@ std::string LRangeCommand(KVContainer *holder, const CommandCache &cmds) {
     if (!ranges.empty()) {
       return PackArrayMsg(ranges);
     }
-  } else if (errcode == kWrongTypeCode) {
-    return kWrongTypeMsg;
+  } else {
+    IfWrongTypeReturn(errcode)
   }
   return kArrayEmptyMsg;
 }
 
 std::string LInsertCommand(KVContainer *holder, const CommandCache &cmds) {
   /* TODO */
-  return kNotOkMsg;
+  return kNotSupportedYetMsg;
 }
 
 std::string LRemCommand(KVContainer *holder, const CommandCache &cmds) {
   /* TODO */
-  return kNotOkMsg;
+  return kNotSupportedYetMsg;
 }
 
 std::string LSetCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: lsetindex key index value */
-  CheckSyntaxHelper(cmds, 1, 2, "incorrect number of arguments for 'lsetindex' command");
+  CheckSyntaxHelper(cmds, 1, 2, false, 'lsetindex');
   const std::string &key = cmds.argv[1];
-  const std::string& index = cmds.argv[2];
+  const std::string &index = cmds.argv[2];
   int idx;
   if (!CanConvertToInt32(index, idx)) {
     return kInvalidIntegerMsg;
   }
-  const std::string& value = cmds.argv[3];
+  const std::string &value = cmds.argv[3];
   int errcode;
-  bool ok = holder->ListSetItemAtIndex(key, idx, value, errcode);
+  holder->ListSetItemAtIndex(key, idx, value, errcode);
   if (errcode == kOkCode) {
     return kOkMsg;
   } else if (errcode == kWrongTypeCode) {
@@ -394,7 +417,7 @@ std::string LSetCommand(KVContainer *holder, const CommandCache &cmds) {
 
 std::string LIndexCommand(KVContainer *holder, const CommandCache &cmds) {
   /* usage: lindex key index */
-  CheckSyntaxHelper(cmds, 1, 1, "incorrect number of arguments for 'lindex' command");
+  CheckSyntaxHelper(cmds, 1, 1, false, 'lindex');
   const std::string &key = cmds.argv[1];
   const std::string &index = cmds.argv[2];
   int idx;
@@ -405,9 +428,121 @@ std::string LIndexCommand(KVContainer *holder, const CommandCache &cmds) {
   auto item = holder->ListItemAtIndex(key, idx, errcode);
   if (errcode == kOkCode) {
     return PackStringValueReply(item.ToStdString());
-  } else if (errcode == kWrongTypeCode) {
-    return kWrongTypeMsg;
   }
+  IfWrongTypeReturn(errcode)
   /* if lindex encounters out of range, or key not found we can simply return nil */
   return kNilMsg;
 }
+
+std::string HSetCommand(KVContainer *holder, const CommandCache &cmds) {
+  /* usage: hset key field1 value1 field2 value2 ... */
+  CheckSyntaxHelper(cmds, 1, -1, true, 'hset')
+  const std::string &key = cmds.argv[1];
+  /* extract vector of fields and values */
+  size_t n = (cmds.argv.size() - 2) >> 1;
+  std::vector<std::string> fields, values;
+  fields.reserve(n);
+  values.reserve(n);
+  for (auto it = cmds.argv.begin() + 2; it != cmds.argv.end(); it += 2) {
+    fields.emplace_back(*it);
+    values.emplace_back(*(it + 1));
+  }
+  int errcode;
+  int count = holder->HashSetKV(Key(key), fields, values, errcode);
+  if (errcode == kOkCode && count != 0) {
+    return kOkMsg;
+  }
+  IfWrongTypeReturn(errcode)
+  return kNotOkMsg;
+}
+
+std::string HGetCommand(KVContainer *holder, const CommandCache &cmds) {
+  /* usage: hget key field1 field2 ...*/
+  CheckSyntaxHelper(cmds, 1, -1, false, 'hget')
+  const std::string &key = cmds.argv[1];
+  int errcode;
+  Key k = Key(key);
+  if (cmds.argv.size() == 3) {
+    DictVal val = holder->HashGetValue(k, DictKey(cmds.argv[2]), errcode);
+    if (errcode == kOkCode) {
+      return PackStringValueReply(val);
+    }
+    IfKeyNotFoundReturn(errcode)
+    IfWrongTypeReturn(errcode)
+  } else {
+    std::vector<std::string> fields(cmds.argv.begin() + 2, cmds.argv.end());
+    std::vector<DictVal> values = holder->HashGetValue(k, fields, errcode);
+    /* pack into array and return */
+    if (!values.empty()) {
+      return PackArrayMsg(values);
+    }
+    return kArrayEmptyMsg;
+  }
+  return kArrayEmptyMsg;
+}
+
+std::string HDelCommand(KVContainer *holder, const CommandCache &cmds) {
+  /* usage: hdel key field1 field2 ...*/
+  CheckSyntaxHelper(cmds, 1, -1, false, 'hdel')
+  const std::string &key = cmds.argv[1];
+  int errcode;
+  /* get all deleting fields */
+  std::vector<std::string> fields (cmds.argv.begin() + 2, cmds.argv.end());
+  size_t n_deleted = holder->HashDelField(Key(key), fields, errcode);
+  IfWrongTypeReturn(errcode)
+  return PackIntReply(n_deleted);
+}
+
+std::string HExistsCommand(KVContainer *holder, const CommandCache &cmds) {
+  /* usage: hexists key field */
+  CheckSyntaxHelper(cmds, 1, 1, false, 'hexists')
+  const std::string &key = cmds.argv[1];
+  const std::string &field = cmds.argv[2];
+  int errcode;
+  auto ans = holder->HashExistField(key, field, errcode);
+  IfWrongTypeReturn(errcode)
+  return PackBoolReply(ans);
+}
+
+#define HKeysValsEntriesCommon(operation) \
+  const std::string &key = cmds.argv[1];  \
+  int errcode;  \
+  auto keys = holder->operation(key, errcode); \
+  if (errcode == kWrongTypeCode) {  \
+    return kWrongTypeMsg; \
+  } \
+  if (!keys.empty()) {  \
+    return PackArrayMsg(keys);  \
+  } \
+  return kArrayEmptyMsg; \
+
+
+std::string HGetAllCommand(KVContainer *holder, const CommandCache &cmds) {
+  /* usage: hgetall key */
+  CheckSyntaxHelper(cmds, 1, 0, false, 'hgetall')
+  HKeysValsEntriesCommon(HashGetAllEntries)
+}
+std::string HKeysCommand(KVContainer *holder, const CommandCache &cmds) {
+  /* usage: hkeys key */
+  CheckSyntaxHelper(cmds, 1, 0, false, 'hkeys')
+  HKeysValsEntriesCommon(HashGetAllFields)
+}
+
+std::string HValsCommand(KVContainer *holder, const CommandCache &cmds) {
+  /* usage: hvals key*/
+  CheckSyntaxHelper(cmds, 1, 0, false, 'hvals')
+  HKeysValsEntriesCommon(HashGetAllValues)
+}
+
+#undef HKeysValsEntriesCommon
+
+std::string HLenCommand(KVContainer *holder, const CommandCache &cmds) {
+  /* usage: hlen key */
+  CheckSyntaxHelper(cmds, 1, 0, false, 'hlen')
+  const std::string& key = cmds.argv[1];
+  int errcode;
+  size_t len = holder->HashLen(key, errcode);
+  IfWrongTypeReturn(errcode)
+  return PackIntReply(len);
+}
+

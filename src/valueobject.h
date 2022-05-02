@@ -6,6 +6,7 @@
 
 #include "str.h"
 #include "dlist.h"
+#include "dict.h"
 
 struct ValueObject;
 
@@ -23,26 +24,19 @@ typedef std::shared_ptr<ValueObject> ValueObjectPtr;
  * 
  */
 struct ValueObject {
-  /* ojbect type */
+  /* object type */
   unsigned char type;
-
-  /* last visited timestamp */
-  uint64_t last_visit_time;
 
   /* CAS */
   int cas; /* reserved, not used */
-  
-  /* expiration timestamp (seconds since epoch) */
-  uint64_t exp_time;
 
   /* pointer to real content */
   void *ptr;
 
   ValueObject() {}
 
-  ValueObject(unsigned char type, uint64_t created_time, int cas, uint64_t exp_time, void* ptr) : 
-    type(type), last_visit_time(created_time), cas(cas), 
-    exp_time(exp_time), ptr(ptr) {}
+  ValueObject(unsigned char type, void* ptr) :
+    type(type), cas(0), ptr(ptr) {}
 
   void FreePtr() {
     if (type != OBJECT_INT && ptr) { /* no need to free int object */
@@ -51,7 +45,7 @@ struct ValueObject {
       } else if (type == OBJECT_LIST) {
         delete reinterpret_cast<DList *>(ptr);
       } else if (type == OBJECT_HASH) {
-        // TODO delete hash object here
+        delete reinterpret_cast<Dict *>(ptr);
       }
       ptr = nullptr;
     }
@@ -84,17 +78,21 @@ struct ValueObject {
   }
 };
 
-ValueObject *ConstructIntObj(int64_t intval, uint64_t exp_time);
+ValueObject *ConstructIntObj(int64_t intval);
 
-ValueObjectPtr ConstructIntObjPtr(int64_t intval, uint64_t exp_time);
+ValueObjectPtr ConstructIntObjPtr(int64_t intval);
 
-ValueObject *ConstructStrObj(const std::string &strval, uint64_t exp_time);
+ValueObject *ConstructStrObj(const std::string &strval);
 
-ValueObjectPtr ConstructStrObjPtr(const std::string &strval, uint64_t exp_time);
+ValueObjectPtr ConstructStrObjPtr(const std::string &strval);
 
 ValueObject *ConstructDListObj();
 
 ValueObjectPtr ConstructDListObjPtr();
+
+ValueObject *ConstructHashObj();
+
+ValueObjectPtr ConstructHashObjPtr();
 
 uint64_t GetCurrentSec();
 
