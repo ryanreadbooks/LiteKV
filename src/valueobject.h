@@ -94,6 +94,4 @@ ValueObject *ConstructHashObj();
 
 ValueObjectPtr ConstructHashObjPtr();
 
-uint64_t GetCurrentSec();
-
 #endif  // __VALUE_OBJECT_H__

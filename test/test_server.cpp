@@ -1,7 +1,6 @@
 #include "../src/net/server.h"
 
-int main(int argc, char const *argv[])
-{
+int main(int argc, char const *argv[]) {
 
   std::cout << "sizeof(EventLoop) = " << sizeof(EventLoop) << std::endl;
   std::cout << "sizeof(Server) = " << sizeof(Server) << std::endl;
@@ -10,6 +9,7 @@ int main(int argc, char const *argv[])
   std::cout << "sizeof(Buffer) = " << sizeof(Buffer) << std::endl;
   std::cout << "sizeof(ProcFuncType) = " << sizeof(ProcFuncType) << std::endl;
   std::cout << "sizeof(std::string) = " << sizeof(std::string) << std::endl;
+  std::cout << "sizeof(TimeEvent) = " << sizeof(TimeEvent) << std::endl;
 
   EventLoop loop;
   KVContainer container;

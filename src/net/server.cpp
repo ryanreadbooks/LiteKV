@@ -260,7 +260,7 @@ void Server::WriteProc(Session *session, bool &closed) {
     loop_->epoller->ModifySession(session);
     buffer.Reset();
   }
-  if (nbytes == 0 && readable_bytes != 0) {
+  if (nbytes == 0 && buffer.ReadableBytes() != 0) {
     session->watched = false;
     buffer.Reset();
     close(fd);

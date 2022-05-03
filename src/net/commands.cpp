@@ -285,6 +285,7 @@ std::string AppendCommand(KVContainer *holder, const CommandCache &cmds) {
   if (errcode == kOkCode) {
     return PackIntReply(after_len);
   }
+  IfKeyNotFoundReturn(errcode)
   IfWrongTypeReturn(errcode)
   return kNotOkMsg;
 }

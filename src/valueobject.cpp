@@ -1,5 +1,3 @@
-#include <sys/time.h>
-
 #include "valueobject.h"
 
 ValueObject* ConstructIntObj(int64_t intval) {
@@ -91,8 +89,3 @@ ValueObjectPtr ConstructHashObjPtr() {
   }
 }
 
-uint64_t GetCurrentSec() {
-  struct timeval tv;
-  gettimeofday(&tv, nullptr);
-  return tv.tv_sec;
-}

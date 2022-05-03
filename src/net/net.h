@@ -80,6 +80,15 @@ struct Session {
 
 typedef std::shared_ptr<Session> SessionPtr;
 
+struct TimeEvent {
+  long id;
+  uint64_t when;
+  TimeEvent* next;
+  std::function<void()> callback;
+
+  TimeEvent()
+};
+
 struct EventLoop {
   Epoller *epoller = nullptr;
   std::atomic_bool stopped{false};

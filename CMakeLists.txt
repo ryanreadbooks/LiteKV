@@ -17,7 +17,7 @@ set(NET_SRC
     src/net/utils.cpp
     src/net/buffer.cpp
     src/net/commands.cpp
-    )
+    src/time_utils.h.cpp)
 
 add_executable(test_core test/test_core.cpp ${SRC})
 add_executable(test_core2 test/test_core2.cpp ${SRC})
