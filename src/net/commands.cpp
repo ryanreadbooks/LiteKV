@@ -127,6 +127,15 @@ static std::string PackArrayMsg(const std::vector<DynamicString> &array) {
   return arr_ss.str();
 }
 
+static std::string PackEmptyArrayMsg(size_t size) {
+  std::stringstream arr_ss;
+  arr_ss << kArrayPrefix << size << kCRLF;
+  for (size_t i = 0; i < size; ++i) {
+    arr_ss << kNilMsg;
+  }
+  return arr_ss.str();
+}
+
 std::string Engine::HandleCommand(const CommandCache &cmds) {
   size_t argc = cmds.argc;
   const std::vector<std::string> &argv = cmds.argv;
@@ -476,7 +485,8 @@ std::string HGetCommand(KVContainer *holder, const CommandCache &cmds) {
     if (!values.empty()) {
       return PackArrayMsg(values);
     }
-    return kArrayEmptyMsg;
+    /* return query result of every key */
+    return PackEmptyArrayMsg(fields.size());
   }
   return kArrayEmptyMsg;
 }

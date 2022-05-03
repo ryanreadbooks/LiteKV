@@ -134,7 +134,7 @@ bool Server::AuxiliaryReadProc(Buffer &buffer, CommandCache &cache, int nbytes) 
 void Server::AuxiliaryReadProcParseErrorHandling(Session *session) {
   if (!session) return;
   /* Fill write buffer with error msg and send them back to client */
-  FillErrorMsg(session->write_buf, ErrType::WRONGREQ, "unidentified request");
+  FillErrorMsg(session->write_buf, ErrType::WRONGREQ, "unidentified request\r\n");
   /* trigger write */
   session->SetWrite();
   loop_->epoller->ModifySession(session);
@@ -144,7 +144,7 @@ void Server::ReadProc(Session *session, bool &closed) {
   int fd = session->fd;
   Buffer &buffer = session->read_buf;
   CommandCache &cache = session->cache;
-  char buf[64];
+  char buf[4096];
   int nbytes = ReadToBuf(fd, buf, sizeof(buf));
   if (nbytes == 0) {
     /* close connection */
@@ -156,7 +156,7 @@ void Server::ReadProc(Session *session, bool &closed) {
     closed = true;
     return;
   }
-  std::cout << "received bytes = " << nbytes << std::endl;
+  std::cout << "Received bytes = " << nbytes << std::endl;
   buffer.Append(buf, nbytes);
   auto show_buffer = [&]() {
     std::string ans = buffer.ReadableAsString();
@@ -251,12 +251,21 @@ void Server::WriteProc(Session *session, bool &closed) {
   std::cout << "Doing write process, write buffer is => " << buffer.ReadableAsString() << std::endl;
   /* ensure all data has been sent, then unregister EPOLLOUT to this fd */
   size_t readable_bytes = buffer.ReadableBytes();
+  /* FIXME bug */
   int nbytes = WriteFromBuf(fd, static_cast<const char *>(buffer.BeginRead()), readable_bytes);
-  std::cout << "Send " << nbytes << " bytes response to client\n";
+  std::cout << "Send " << nbytes << " bytes response to client, readable_bytes = " << readable_bytes <<"\n";
   /* FIXME optimize */
   if ((size_t)nbytes == readable_bytes) {
     session->SetRead();
     loop_->epoller->ModifySession(session);
     buffer.Reset();
+  }
+  if (nbytes == 0 && readable_bytes != 0) {
+    session->watched = false;
+    buffer.Reset();
+    close(fd);
+    sessions_.erase(session->name);
+    std::cout << "Client exit, now close connection...\n";
+    closed = true;
   }
 }
