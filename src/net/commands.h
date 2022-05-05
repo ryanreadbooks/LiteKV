@@ -16,6 +16,8 @@ static const char kArrayPrefix = '*';
 static const char* kCRLF = "\r\n";
 #define kInt1Msg ":1\r\n"
 #define kInt0Msg ":0\r\n"
+#define kIntMinus2Msg ":-2\r\n"
+#define kIntMinus1Msg ":-1\r\n"
 #define kNilMsg "$-1\r\n";
 #define kOkMsg "+OK\r\n"
 #define kPONGMsg "+PONG\r\n";
@@ -34,7 +36,7 @@ enum ErrType {
   ERROR = 2       /* others */
 };
 
-typedef std::string (*CommandHandler)(KVContainer *, const CommandCache &);
+typedef std::string (*CommandHandler)(EventLoop*, KVContainer *, const CommandCache &);
 
 class Engine {
 public:
@@ -42,9 +44,9 @@ public:
 
   ~Engine() {};
 
-  std::string HandleCommand(const CommandCache &cmds);
+  std::string HandleCommand(EventLoop* loop, const CommandCache &cmds);
 
-  void HandleCommand(const CommandCache &cmds, Buffer &out_buf);
+  void HandleCommand(EventLoop* loop, const CommandCache &cmds, Buffer &out_buf);
 
   static bool OpCodeValid(const std::string &opcode);
 
@@ -53,42 +55,44 @@ private:
   static std::unordered_map<std::string, CommandHandler> sOpCommandMap;
 };
 /* generic command */
-std::string PingCommand(KVContainer *, const CommandCache&);
-std::string DelCommand(KVContainer *, const CommandCache&);
-std::string ExistsCommand(KVContainer *, const CommandCache&);
-std::string TypeCommand(KVContainer *, const CommandCache&);
+std::string PingCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string DelCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string ExistsCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string TypeCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string ExpireCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string TTLCommand(EventLoop*, KVContainer *, const CommandCache&);
 /* int or string command */
-std::string SetCommand(KVContainer *, const CommandCache&);
-std::string GetCommand(KVContainer *, const CommandCache&);
+std::string SetCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string GetCommand(EventLoop*, KVContainer *, const CommandCache&);
 /* int command */
-std::string IncrCommand(KVContainer *, const CommandCache&);
-std::string DecrCommand(KVContainer *, const CommandCache&);
-std::string IncrByCommand(KVContainer *, const CommandCache&);
-std::string DecrByCommand(KVContainer *, const CommandCache&);
+std::string IncrCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string DecrCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string IncrByCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string DecrByCommand(EventLoop*, KVContainer *, const CommandCache&);
 /* string command */
-std::string StrlenCommand(KVContainer *, const CommandCache&);
-std::string AppendCommand(KVContainer *, const CommandCache&);
-std::string GetRangeCommand(KVContainer *, const CommandCache&);
-std::string SetRangeCommand(KVContainer *, const CommandCache&);
+std::string StrlenCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string AppendCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string GetRangeCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string SetRangeCommand(EventLoop*, KVContainer *, const CommandCache&);
 /* list command */
-std::string LLenCommand(KVContainer *, const CommandCache&);
-std::string LPopCommand(KVContainer *, const CommandCache&);
-std::string LPushCommand(KVContainer *, const CommandCache&);
-std::string RPopCommand(KVContainer *, const CommandCache&);
-std::string RPushCommand(KVContainer *, const CommandCache&);
-std::string LRangeCommand(KVContainer *, const CommandCache&);
-std::string LInsertCommand(KVContainer *, const CommandCache&);
-std::string LRemCommand(KVContainer *, const CommandCache&);
-std::string LSetCommand(KVContainer *, const CommandCache&);
-std::string LIndexCommand(KVContainer *holder, const CommandCache &cmds);
+std::string LLenCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string LPopCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string LPushCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string RPopCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string RPushCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string LRangeCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string LInsertCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string LRemCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string LSetCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string LIndexCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
 /* hash command */
-std::string HSetCommand(KVContainer *holder, const CommandCache &cmds);
-std::string HGetCommand(KVContainer *holder, const CommandCache &cmds);
-std::string HDelCommand(KVContainer *holder, const CommandCache &cmds);
-std::string HExistsCommand(KVContainer *holder, const CommandCache &cmds);
-std::string HGetAllCommand(KVContainer *holder, const CommandCache &cmds);
-std::string HKeysCommand(KVContainer *holder, const CommandCache &cmds);
-std::string HValsCommand(KVContainer *holder, const CommandCache &cmds);
-std::string HLenCommand(KVContainer *holder, const CommandCache &cmds);
+std::string HSetCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
+std::string HGetCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
+std::string HDelCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
+std::string HExistsCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
+std::string HGetAllCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
+std::string HKeysCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
+std::string HValsCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
+std::string HLenCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
 
 # endif // __ENGINE_H__

@@ -9,10 +9,10 @@
 #include <utility>
 #include <vector>
 #include <sys/epoll.h>
-#include "buffer.h"
 
-const static int kReadable = 1;
-const static int kWritable = 2;
+#include "buffer.h"
+#include "time_event.h"
+
 
 class Epoller;
 
@@ -80,17 +80,9 @@ struct Session {
 
 typedef std::shared_ptr<Session> SessionPtr;
 
-struct TimeEvent {
-  long id;
-  uint64_t when;
-  TimeEvent* next;
-  std::function<void()> callback;
-
-  TimeEvent()
-};
-
 struct EventLoop {
   Epoller *epoller = nullptr;
+  TimeEventHolder* tev_holder = nullptr;
   std::atomic_bool stopped{false};
 
   EventLoop();
@@ -98,6 +90,12 @@ struct EventLoop {
   ~EventLoop();
 
   void Loop();
+
+  TimeEvent* AddTimeEvent(uint64_t interval, std::function<void()> callback, int count) const;
+
+  bool UpdateTimeEvent(long id, uint64_t interval, int count);
+
+  bool RemoveTimeEvent(long id);
 
 };
 

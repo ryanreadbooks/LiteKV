@@ -21,7 +21,7 @@
     <th align="center">Description</th>     
   </tr>
   <tr>
-    <td rowspan="5" align="center"> <b>Generic</b> </td>
+    <td rowspan="7" align="center"> <b>Generic</b> </td>
   </tr>
   <tr>
     <td align="center"> ping </td>
@@ -43,7 +43,19 @@
     <td align="center"> type key　</td>
     <td align="center"> Return data type of specified key </td>
   </tr>
+
+  <tr>
+    <td align="center"> expire </td>
+    <td align="center"> expire key seconds </td>
+    <td align="center"> Set expiration for key </td>
+  </tr>
     
+  <tr>
+    <td align="center"> ttl </td>
+    <td align="center"> ttl key </td>
+    <td align="center"> Get the time to live (TTL) in seconds of key </td>
+  </tr>
+
   <tr>
     <td rowspan="3" align="center"> <b>Integer or String</b> </td>
   </tr>

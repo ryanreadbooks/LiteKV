@@ -2,16 +2,30 @@
 #include <memory>
 #include <sys/epoll.h>
 #include <unistd.h>
-#include <signal.h>
 #include "net.h"
 
 EventLoop::EventLoop() :
-    epoller(new Epoller(1024)), stopped(false) {}
+    epoller(new (std::nothrow) Epoller(1024)),
+    tev_holder(new (std::nothrow) TimeEventHolder),
+    stopped(false) {
+  if (epoller == nullptr) {
+    std::cerr << "Can not initialize epoller in event loop, program abort.\n";
+    exit(-1);
+  }
+  if (tev_holder == nullptr) {
+    std::cerr << "Can not initialize time event handler in event loop, program abort.\n";
+    exit(-1);
+  }
+}
 
 EventLoop::~EventLoop() {
   if (epoller != nullptr) {
     delete epoller;
     epoller = nullptr;
+  }
+  if (tev_holder != nullptr) {
+    delete tev_holder;
+    tev_holder = nullptr;
   }
   stopped.store(true);
 }
@@ -24,7 +38,8 @@ void EventLoop::Loop() {
   std::cout << "Event loop working...\n";
   while (!stopped) {
     // TODO change optimize timeout ms
-    int ready = epoller->Wait(-1);
+    uint64_t ms = tev_holder->HowLongTillNextFired();
+    int ready = epoller->Wait(ms);
     /* process events one by one */
     // std::cout << "ready = " << ready << std::endl;
     debug_n += ready;
@@ -48,7 +63,21 @@ void EventLoop::Loop() {
         }
       }
     }
+    /* handle time events */
+    tev_holder->HandleFiredTimeEvent();
   }
+}
+
+TimeEvent* EventLoop::AddTimeEvent(uint64_t interval, std::function<void ()> callback, int count) const {
+  return tev_holder->CreateTimeEvent(interval, std::move(callback), count);
+}
+
+bool EventLoop::UpdateTimeEvent(long id, uint64_t interval, int count) {
+  return tev_holder->UpdateTimeEvent(id, interval, count);
+}
+
+bool EventLoop::RemoveTimeEvent(long id) {
+  return tev_holder->RemoveTimeEvent(id);
 }
 
 Epoller::Epoller(size_t max_events) :

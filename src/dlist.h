@@ -81,11 +81,11 @@ public:
 
   std::vector<ElemType> RangeAsDynaStringVector(int start, int finish);
 
-  // TODO 在指定索引位置插入元素
+  // TODO insert element at specific index
 
-  // TODO 删除指定索引位置的元素
+  // TODO delete element at specific index
 
-  // TODO 删除某个范围内的元素
+  // TODO remove elements in specified range
 
   inline Node *Front() const { return head_; }
 

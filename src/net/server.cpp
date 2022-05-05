@@ -218,7 +218,7 @@ void Server::ReadProc(Session *session, bool &closed) {
       std::cout << arg << " ";
     }
     std::cout << std::endl;
-    std::string handle_result = engine_->HandleCommand(cache);
+    std::string handle_result = engine_->HandleCommand(loop_, cache);
     session->write_buf.Append(handle_result);
     session->SetWrite();
     loop_->epoller->ModifySession(session);/* FIXME no need to modify session every time */
