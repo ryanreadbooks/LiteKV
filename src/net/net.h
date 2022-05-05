@@ -7,6 +7,7 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include <sstream>
 #include <vector>
 #include <sys/epoll.h>
 
@@ -20,7 +21,7 @@ struct EventLoop;
 struct CommandCache;
 struct Session;
 
-typedef std::function<void(Session *, bool&)> ProcFuncType;
+typedef std::function<void(Session *, bool &)> ProcFuncType;
 typedef struct epoll_event epoll_event;
 
 struct CommandCache {
@@ -32,6 +33,43 @@ struct CommandCache {
     inited = false;
     argc = 0;
     argv.clear();
+  }
+
+  friend std::ostream &operator<<(std::ostream &os, const CommandCache &cache) {
+    for (size_t i = 0; i < cache.argv.size(); ++i) {
+      if (i != cache.argv.size() - 1) {
+        os << cache.argv[i] << " ";
+      } else {
+        os << cache.argv[i] << "\n";
+      }
+    }
+    return os;
+  }
+
+  std::string ToString() const {
+    std::stringstream ss;
+    ss << *this;
+    return ss.str();
+  }
+
+  std::string ToProtocolString() const {
+    std::stringstream ss;
+    ss << '*' << argc << '\r' << '\n';
+    for (const auto &item : argv) {
+      if (item.empty()) {
+        ss << "$0\r\n\r\n";
+      } else {
+        ss << '$' << item.size() << '\r' << '\n'
+            << item << '\r' << '\n';
+      }
+    }
+    return ss.str();
+  }
+
+  static CommandCache FromProtocolString(const std::string &protostr) {
+    /* TODO construct from protocol string */
+    CommandCache ret;
+    return ret;
   }
 };
 
@@ -58,8 +96,8 @@ struct Session {
 
   Session(int fd, uint32_t mask, ProcFuncType rpr, ProcFuncType wpr,
           EventLoop *loop, std::string name) : fd(fd), mask(mask),
-      read_proc(std::move(rpr)), write_proc(std::move(wpr)),
-      loop(loop), name(std::move(name)) {}
+                                               read_proc(std::move(rpr)), write_proc(std::move(wpr)),
+                                               loop(loop), name(std::move(name)) {}
 
   ~Session() {
     std::cout << "session closed\n";
@@ -82,7 +120,7 @@ typedef std::shared_ptr<Session> SessionPtr;
 
 struct EventLoop {
   Epoller *epoller = nullptr;
-  TimeEventHolder* tev_holder = nullptr;
+  TimeEventHolder *tev_holder = nullptr;
   std::atomic_bool stopped{false};
 
   EventLoop();
@@ -91,7 +129,7 @@ struct EventLoop {
 
   void Loop();
 
-  TimeEvent* AddTimeEvent(uint64_t interval, std::function<void()> callback, int count) const;
+  TimeEvent *AddTimeEvent(uint64_t interval, std::function<void()> callback, int count) const;
 
   bool UpdateTimeEvent(long id, uint64_t interval, int count);
 

@@ -29,6 +29,7 @@ const static int kFailCode = 400;
 const static int kKeyNotFoundCode = 401;
 const static int kWrongTypeCode = 402;
 const static int kOutOfRangeCode = 403;
+const static int kOverflowCode = 404;
 
 class KVContainer {
 public:
@@ -60,13 +61,45 @@ public:
 
   size_t NumItems() const;
 
+  std::vector<std::string> RecoverCommand(const std::string& key, int &errcode);
+
   /**
    * @brief set integer
    * 
    */
   bool SetInt(const Key &key, int64_t intval);
 
-  bool SetInt(const std::string &key, int64_t intval);
+  bool SetInt(const std::string &key, int64_t intval) {
+    return SetInt(Key(key), intval);
+  }
+
+  int64_t IncrIntBy(const Key& key, int64_t increment, int& errcode);
+
+  int64_t IncrIntBy(const std::string& key, int64_t increment, int& errcode) {
+    return IncrIntBy(Key(key), increment, errcode);
+  }
+
+  int64_t IncrInt(const Key& key, int& errcode) {
+    return IncrIntBy(key, 1, errcode);
+  }
+
+  int64_t IncrInt(const std::string& key, int& errcode) {
+    return IncrInt(Key(key), errcode);
+  }
+
+  int64_t DecrIntBy(const Key& key, int64_t decrement, int& errcode);
+
+  int64_t DecrIntBy(const std::string& key, int64_t increment, int& errcode) {
+    return DecrIntBy(Key(key), increment, errcode);
+  }
+
+  int64_t DecrInt(const Key& key, int& errcode) {
+    return DecrIntBy(key, 1, errcode);
+  }
+
+  int64_t DecrInt(const std::string& key, int& errcode) {
+    return DecrInt(Key(key), errcode);
+  }
 
   /**
    * @brief set string
@@ -74,7 +107,9 @@ public:
    */
   bool SetString(const Key &key, const std::string &value);
 
-  bool SetString(const std::string &key, const std::string &value);
+  bool SetString(const std::string &key, const std::string &value) {
+    return SetString(Key(key), value);
+  }
 
   size_t StrLen(const Key &key, int &errcode);
 

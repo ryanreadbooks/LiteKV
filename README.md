@@ -21,7 +21,7 @@
     <th align="center">Description</th>     
   </tr>
   <tr>
-    <td rowspan="7" align="center"> <b>Generic</b> </td>
+    <td rowspan="8" align="center"> <b>Generic</b> </td>
   </tr>
   <tr>
     <td align="center"> ping </td>
@@ -49,6 +49,12 @@
     <td align="center"> expire key seconds </td>
     <td align="center"> Set expiration for key </td>
   </tr>
+  
+  <tr>
+      <td align="center"> expireat </td>
+      <td align="center"> expireat key unix-timestamp </td>
+      <td align="center"> Set key expire in unix-timestamp </td>
+    </tr>
     
   <tr>
     <td align="center"> ttl </td>
@@ -68,6 +74,30 @@
     <td align="center"> get </td>
     <td align="center"> get key　</td>
     <td align="center"> Get the value of key </td>
+  </tr>
+
+  <tr>
+    <td rowspan="5" align="center"> <b>Integer</b> </td>
+  </tr>
+  <tr>
+    <td align="center"> incr </td>
+    <td align="center"> incr key </td>
+    <td align="center"> Increase int value by 1 on given key </td>
+  </tr>
+  <tr>
+    <td align="center"> decr </td>
+    <td align="center"> decr key </td>
+    <td align="center"> Decrease int value by 1 on given key </td>
+  </tr>
+  <tr>
+    <td align="center"> incrby </td>
+    <td align="center"> incrby key value </td>
+    <td align="center"> Increase int value by n on given key </td>
+  </tr>
+  <tr>
+    <td align="center"> decrby </td>
+    <td align="center"> decry key value </td>
+    <td align="center"> Decrease int value by n on given key </td>
   </tr>
 
   <tr>

@@ -34,10 +34,6 @@ private:
 
   void WriteProc(Session* session, bool&);
 
-  void AuxiliaryReadProcCleanup(Buffer& buffer, CommandCache& cache, size_t begin_idx, int nbytes);
-
-  bool AuxiliaryReadProc(Buffer& buffer, CommandCache& cache, int nbytes);
-
   void AuxiliaryReadProcParseErrorHandling(Session *session);
 
   void FillErrorMsg(Buffer& buffer, ErrType errtype, const char* msg) const;

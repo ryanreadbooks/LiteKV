@@ -59,8 +59,10 @@ public:
 
   void Reset();
 
+  /* pointer to left */
   void ReaderIdxForward(size_t len);
 
+  /* pointer to right */
   void ReaderIdxBackward(size_t len);
 
   std::string ReadStdStringAndForward(size_t len);

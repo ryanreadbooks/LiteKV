@@ -10,11 +10,11 @@ EventLoop::EventLoop() :
     stopped(false) {
   if (epoller == nullptr) {
     std::cerr << "Can not initialize epoller in event loop, program abort.\n";
-    exit(-1);
+    exit(EXIT_FAILURE);
   }
   if (tev_holder == nullptr) {
     std::cerr << "Can not initialize time event handler in event loop, program abort.\n";
-    exit(-1);
+    exit(EXIT_FAILURE);
   }
 }
 

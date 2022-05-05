@@ -19,7 +19,7 @@ int main() {
   cout << "tcmalloc Initialize\n";
   MallocExtension::Initialize();
 #endif
-  /* random igenerate kNum and insert kListLen elements per list*/
+  /* random generate kNum and insert kListLen elements per list*/
   srand(time(NULL));
   srandom(time(NULL));
   auto begin = std::chrono::high_resolution_clock::now();

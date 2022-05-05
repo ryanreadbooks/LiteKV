@@ -7,6 +7,7 @@
 #include <assert.h>
 #include "server.h"
 #include "utils.h"
+#include "protocol.h"
 
 using namespace std::placeholders;
 
@@ -18,7 +19,7 @@ Server::Server(EventLoop *loop, Engine *engine, const std::string &ip, uint16_t 
     loop_(loop), engine_(engine), addr_(ip, port) {
   if (loop == nullptr) {
     std::cerr << "No loop is specified for the server\n";
-    exit(0);
+    exit(EXIT_FAILURE);
   }
   InitListenSession();
 }
@@ -93,44 +94,6 @@ void Server::AcceptProc(Session *session, bool &closed) {
   }
 }
 
-void Server::AuxiliaryReadProcCleanup(Buffer &buffer, CommandCache &cache, size_t begin_idx, int nbytes) {
-  /* clear cache and clean up invalid request in buffer */
-  cache.Clear();
-  buffer.Reset(); /* FIXME, should only discard invalid bytes and reserve those valid request bytes */
-}
-
-bool Server::AuxiliaryReadProc(Buffer &buffer, CommandCache &cache, int nbytes) {
-  /* Helper function to parse request command */
-  size_t begin_idx = buffer.BeginReadIdx();
-  while (buffer.ReadableBytes() > 0 && cache.argc > cache.argv.size()) {
-    DynamicString line = buffer.ReadAndForward(kCRLF);
-    if (line.Empty()) {
-      /* can not form an whole item, wait for more data coming in */
-      break;
-    }
-    if (line[0] != '$') {
-      /* command parsing error, end parsing and reply immediately and clear cache and buffer */
-      AuxiliaryReadProcCleanup(buffer, cache, begin_idx, nbytes);
-      return false;
-    }
-    char *p_end;
-    size_t arg_len = strtol(line.Data() + 1, &p_end, 10);
-    if (buffer.ReadableBytes() < arg_len + 2) {
-      /* can not read arg_len args, wait until next time */
-      buffer.ReaderIdxBackward(line.Length() + 2);
-      break;
-    }
-    std::string arg = buffer.ReadStdStringAndForward(arg_len);
-    if (buffer.ReadStdString(2) != kCRLF) {
-      AuxiliaryReadProcCleanup(buffer, cache, begin_idx, nbytes);
-      return false;
-    }
-    buffer.ReaderIdxForward(2);
-    cache.argv.emplace_back(arg);
-  }
-  return true;
-}
-
 void Server::AuxiliaryReadProcParseErrorHandling(Session *session) {
   if (!session) return;
   /* Fill write buffer with error msg and send them back to client */
@@ -156,7 +119,7 @@ void Server::ReadProc(Session *session, bool &closed) {
     closed = true;
     return;
   }
-  std::cout << "Received bytes = " << nbytes << std::endl;
+  // std::cout << "Received bytes = " << nbytes << std::endl;
   buffer.Append(buf, nbytes);
   auto show_buffer = [&]() {
     std::string ans = buffer.ReadableAsString();
@@ -213,11 +176,7 @@ void Server::ReadProc(Session *session, bool &closed) {
   }
   /* successfully parse one whole request, use it to operator the database */
   if (cache.argc != 0 && cache.argc == cache.argv.size()) {
-    std::cout << "Command fully received, they are, argc = " << cache.argc << ", argv = ";
-    for (auto &arg : cache.argv) {
-      std::cout << arg << " ";
-    }
-    std::cout << std::endl;
+    /*　one whole command fully received till now, process it */
     std::string handle_result = engine_->HandleCommand(loop_, cache);
     session->write_buf.Append(handle_result);
     session->SetWrite();

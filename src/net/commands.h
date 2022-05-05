@@ -4,16 +4,17 @@
 #include "../core.h"
 #include "buffer.h"
 #include "net.h"
+#include "../persistence.h"
 
-static const std::array<const char*, 3> kErrStrTable{"WRONGREQ",
-                                                     "WRONGTYPE",
-                                                     "ERROR"};
+static const std::array<const char *, 3> kErrStrTable{"WRONGREQ",
+                                                      "WRONGTYPE",
+                                                      "ERROR"};
 static const char kErrPrefix = '-';
 static const char kStrMsgPrefix = '+';
 static const char kIntPrefix = ':';
 static const char kStrValPrefix = '$';
 static const char kArrayPrefix = '*';
-static const char* kCRLF = "\r\n";
+static const char *kCRLF = "\r\n";
 #define kInt1Msg ":1\r\n"
 #define kInt0Msg ":0\r\n"
 #define kIntMinus2Msg ":-2\r\n"
@@ -28,6 +29,7 @@ static const char* kCRLF = "\r\n";
 #define kOutOfRangeMsg "-ERROR index out of range\r\n"
 #define kInvalidOpCodeMsg "-ERROR unsupported command\r\n"
 #define kInvalidIntegerMsg "-ERROR index or value is not an integer"
+#define kInt64OverflowMsg "-ERROR integer overflow"
 #define kNotSupportedYetMsg "-ERROR command not supported yet"
 
 enum ErrType {
@@ -36,7 +38,9 @@ enum ErrType {
   ERROR = 2       /* others */
 };
 
-typedef std::string (*CommandHandler)(EventLoop*, KVContainer *, const CommandCache &);
+class AppendableFile;
+
+typedef std::string (*CommandHandler)(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
 
 class Engine {
 public:
@@ -44,55 +48,94 @@ public:
 
   ~Engine() {};
 
-  std::string HandleCommand(EventLoop* loop, const CommandCache &cmds);
+  std::string HandleCommand(EventLoop *loop, const CommandCache &cmds, bool flag = true);
 
-  void HandleCommand(EventLoop* loop, const CommandCache &cmds, Buffer &out_buf);
+  void HandleCommand(EventLoop *loop, const CommandCache &cmds, Buffer &out_buf);
 
   static bool OpCodeValid(const std::string &opcode);
 
+  bool RestoreFromAppendableFile(EventLoop *loop, AppendableFile *history);
+
 private:
-  KVContainer *container_;
+  KVContainer *container_;  /* not own */
+  AppendableFile *appending_; /* not own */
   static std::unordered_map<std::string, CommandHandler> sOpCommandMap;
 };
+
 /* generic command */
-std::string PingCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string DelCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string ExistsCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string TypeCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string ExpireCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string TTLCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string PingCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string DelCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string ExistsCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string TypeCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string ExpireCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string ExpireAtCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string TTLCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
 /* int or string command */
-std::string SetCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string GetCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string SetCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string GetCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
 /* int command */
-std::string IncrCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string DecrCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string IncrByCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string DecrByCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string IncrCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string DecrCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string IncrByCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string DecrByCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
 /* string command */
-std::string StrlenCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string AppendCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string GetRangeCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string SetRangeCommand(EventLoop*, KVContainer *, const CommandCache&);
+std::string StrlenCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string AppendCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string GetRangeCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string SetRangeCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
 /* list command */
-std::string LLenCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string LPopCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string LPushCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string RPopCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string RPushCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string LRangeCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string LInsertCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string LRemCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string LSetCommand(EventLoop*, KVContainer *, const CommandCache&);
-std::string LIndexCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
+std::string LLenCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string LPopCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string LPushCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string RPopCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string RPushCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string LRangeCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string LInsertCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string LRemCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string LSetCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string LIndexCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
 /* hash command */
-std::string HSetCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
-std::string HGetCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
-std::string HDelCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
-std::string HExistsCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
-std::string HGetAllCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
-std::string HKeysCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
-std::string HValsCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
-std::string HLenCommand(EventLoop*, KVContainer *holder, const CommandCache &cmds);
+std::string HSetCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string HGetCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string HDelCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string HExistsCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string HGetAllCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string HKeysCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string HValsCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string HLenCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
 
 # endif // __ENGINE_H__

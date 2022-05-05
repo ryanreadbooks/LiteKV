@@ -7,9 +7,15 @@
   std::mutex &mtx = bucket.mtx; \
   LockGuard lck(mtx) \
 
+#define KeyNotFoundInBucket(key) \
+  bucket.content.find(key) == bucket.content.end()
+
+#define KeyFoundInBucket(key) \
+  bucket.content.find(key) != bucket.content.end()
+
 /* if key is not in bucket, then return retval */
 #define IfKeyNotFoundThenReturn(key, retval) \
-  if (bucket.content.find(key) == bucket.content.end()) { \
+  if (KeyNotFoundInBucket(key)) { \
     errcode = kKeyNotFoundCode; \
     return retval;  \
   }
@@ -34,8 +40,8 @@ std::string KVContainer::Overview() const {
   LockGuard lck(mtx_);
   size_t n_int = 0, n_str = 0, n_list = 0, n_dict = 0;
   size_t n_list_elem = 0, n_dict_entry = 0;
-  for (const auto& bucket : bucket_) {
-    for (const auto& item : bucket.content) {
+  for (const auto &bucket : bucket_) {
+    for (const auto &item : bucket.content) {
       if (item.second->type == OBJECT_INT) {
         ++n_int;
       } else if (item.second->type == OBJECT_STRING) {
@@ -43,25 +49,25 @@ std::string KVContainer::Overview() const {
       } else if (item.second->type == OBJECT_LIST) {
         ++n_list;
         /* find out this list item count */
-        n_list_elem += ((DList*)(item.second->ptr))->Length();
+        n_list_elem += ((DList *) (item.second->ptr))->Length();
       } else if (item.second->type == OBJECT_HASH) {
         ++n_dict;
         /* find out this dict item count */
-        n_dict_entry += ((Dict*)(item.second->ptr))->Count();
+        n_dict_entry += ((Dict *) (item.second->ptr))->Count();
       }
     }
   }
   std::stringstream ss;
   ss << "Number of int: " << n_int << std::endl
-    << "Number of string: " << n_str << std::endl
-    << "Number of list: " << n_list << ", total elements: " << n_list_elem << std::endl
-    << "Number of hash: " << n_dict << ", total entries: " << n_dict_entry << std::endl;
+     << "Number of string: " << n_str << std::endl
+     << "Number of list: " << n_list << ", total elements: " << n_list_elem << std::endl
+     << "Number of hash: " << n_dict << ", total entries: " << n_dict_entry << std::endl;
   return ss.str();
 }
 
 int KVContainer::QueryObjectType(const Key &key) {
   GetBucketAndLock(key);
-  if (bucket.content.find(key) == bucket.content.end()) {
+  if (KeyNotFoundInBucket(key)) {
     return -1; // not found
   }
   return bucket.content[key]->type;
@@ -91,16 +97,51 @@ size_t KVContainer::NumItems() const {
   return cnt;
 }
 
+std::vector<std::string> KVContainer::RecoverCommand(const std::string &key, int &errcode) {
+  /* given an existing key, recover a command to set the key and value */
+  Key k(key);
+  GetBucketAndLock(k);
+  IfKeyNotFoundThenReturn(k, {})
+  auto k_type = bucket.content[k]->type;
+  errcode = kOkCode;
+  if (k_type == OBJECT_INT) {
+    return {"set", key, std::to_string(bucket.content[k]->ToInt64())};
+  } else if (k_type == OBJECT_STRING) {
+    return {"set", key, bucket.content[k]->ToStdString()};
+  } else if (k_type == OBJECT_LIST) {
+    /* rpush */
+    std::vector<std::string> ranges = RetrievePtr(k, DList)->RangeAsStdStringVector();
+    std::vector<std::string> ret = {"rpush", key};
+    ret.insert(ret.end(), ranges.begin(), ranges.end());
+    return ret;
+  } else if (k_type == OBJECT_HASH) {
+    /* hset */
+    std::vector<HTEntry *> entries = RetrievePtr(k, Dict)->AllEntries();
+    std::vector<std::string> entries_str;
+    entries_str.reserve(entries.size() * 2);
+    for (const auto &p_entry : entries) {
+      const HTEntry& entry = *p_entry;
+      entries_str.emplace_back(entry.key->ToStdString());
+      entries_str.emplace_back(entry.value->ToStdString());
+    }
+    std::vector<std::string> ret = {"hset", key};
+    ret.insert(ret.end(), entries_str.begin(), entries_str.end());
+    return ret;
+  }
+  errcode = kFailCode;
+  return {};
+}
+
 bool KVContainer::SetInt(const Key &key, int64_t intval) {
   // get bucket
   GetBucketAndLock(key);
-  if (bucket.content.find(key) == bucket.content.end()) {
+  if (KeyNotFoundInBucket(key)) {
     // set new value
-    auto sptr = ConstructIntObjPtr(intval);
-    if (!sptr) {
+    auto iptr = ConstructIntObjPtr(intval);
+    if (!iptr) {
       return false;
     }
-    bucket.content[key] = sptr;
+    bucket.content[key] = iptr;
   } else {
     // check existing key is type int
     if (bucket.content[key]->type != OBJECT_INT) {
@@ -114,14 +155,69 @@ bool KVContainer::SetInt(const Key &key, int64_t intval) {
   return true;
 }
 
-bool KVContainer::SetInt(const std::string &key, int64_t intval) {
-  return SetInt(Key(key), intval);
+int64_t KVContainer::IncrIntBy(const Key &key, int64_t increment, int &errcode) {
+  // get bucket
+  // we ensure here increment >= 0, 0 <= increment <= INT64_MAX
+  GetBucketAndLock(key);
+  /* if no key found, we create new int and set it to zero then perform increment operation */
+  if (KeyNotFoundInBucket(key)) {
+    auto iptr = ConstructIntObjPtr(increment);
+    if (!iptr) {
+      errcode = kFailCode;
+      return 0;
+    }
+    bucket.content[key] = iptr;
+    errcode = kOkCode;
+    return iptr->ToInt64();
+  } else {
+    /* add increment on existing value */
+    IfKeyNotTypeThenReturn(key, OBJECT_INT, 0)
+    /* check overflow */
+    int64_t val = bucket.content[key]->ToInt64();
+    if (val > INT64_MAX - increment) {
+      errcode = kOverflowCode;
+      return 0;
+    }
+    int64_t ans = val + increment;
+    bucket.content[key]->ptr = reinterpret_cast<void *>(ans);
+    errcode = kOkCode;
+    return ans;
+  }
 }
+
+int64_t KVContainer::DecrIntBy(const Key &key, int64_t decrement, int &errcode) {
+  // we ensure here decrement is positive. decrement >= 0, 0 <= decrement <= INT64_MAX
+  GetBucketAndLock(key);
+  /* if no key found, we create new int and set it to zero then perform decrement operation */
+  if (KeyNotFoundInBucket(key)) {
+    auto iptr = ConstructIntObjPtr(-decrement);
+    if (!iptr) {
+      errcode = kFailCode;
+      return 0;
+    }
+    bucket.content[key] = iptr;
+    errcode = kOkCode;
+    return iptr->ToInt64();
+  } else {
+    /* add decrement on existing value */
+    IfKeyNotTypeThenReturn(key, OBJECT_INT, 0)
+    int64_t val = bucket.content[key]->ToInt64();
+    if (val < INT64_MIN + decrement) {
+      errcode = kOverflowCode;
+      return 0;
+    }
+    int64_t ans = val - decrement;
+    bucket.content[key]->ptr = reinterpret_cast<void *>(ans);
+    errcode = kOkCode;
+    return ans;
+  }
+}
+
 
 bool KVContainer::SetString(const Key &key, const std::string &value) {
   // get bucket
   GetBucketAndLock(key);
-  if (bucket.content.find(key) == bucket.content.end()) {
+  if (KeyNotFoundInBucket(key)) {
     // set new value
     ValueObjectPtr sptr = ConstructStrObjPtr(value);
     if (!sptr) {
@@ -149,9 +245,6 @@ bool KVContainer::SetString(const Key &key, const std::string &value) {
   return true;
 }
 
-bool KVContainer::SetString(const std::string &key, const std::string &value) {
-  return SetString(Key(key), value);
-}
 
 size_t KVContainer::StrLen(const Key &key, int &errcode) {
   GetBucketAndLock(key);
@@ -236,7 +329,7 @@ size_t KVContainer::RightPush(const std::string &key, const std::vector<std::str
 
 #define ListPushAuxCommon(key) \
   GetBucketAndLock(key);  \
-  if (bucket.content.find(key) == bucket.content.end()) { \
+  if (KeyNotFoundInBucket(key)) { \
     /* create new dlist object */   \
     ValueObjectPtr obj = ConstructDListObjPtr();  \
     bucket.content[key] = obj;  \
@@ -373,7 +466,7 @@ bool KVContainer::ListSetItemAtIndex(const Key &key, int index, const std::strin
 
 bool KVContainer::HashSetKV(const Key &key, const DictKey &field, const DictVal &value, int &errcode) {
   GetBucketAndLock(key);
-  if (bucket.content.find(key) == bucket.content.end()) {
+  if (KeyNotFoundInBucket(key)) {
     /* create new hash object */
     auto obj = ConstructHashObjPtr();
     if (!obj) {
@@ -392,7 +485,7 @@ bool KVContainer::HashSetKV(const Key &key, const DictKey &field, const DictVal 
 }
 
 int KVContainer::HashSetKV(const Key &key, const std::vector<std::string> &fields,
-              const std::vector<std::string> &values, int &errcode) {
+                           const std::vector<std::string> &values, int &errcode) {
   if (fields.size() != values.size()) {
     errcode = kFailCode;
     return 0;
@@ -400,7 +493,7 @@ int KVContainer::HashSetKV(const Key &key, const std::vector<std::string> &field
   GetBucketAndLock(key);
   /* if not exists key, then create new hashtable */
   int count = 0;
-  if (bucket.content.find(key) == bucket.content.end()) {
+  if (KeyNotFoundInBucket(key)) {
     auto obj = ConstructHashObjPtr();
     if (!obj) {
       errcode = kFailCode;
@@ -411,7 +504,7 @@ int KVContainer::HashSetKV(const Key &key, const std::vector<std::string> &field
   } else { /* found existing key */
     IfKeyNotTypeThenReturn(key, OBJECT_HASH, 0)
   }
-  Dict* p_dict = RetrievePtr(key, Dict);
+  Dict *p_dict = RetrievePtr(key, Dict);
   for (size_t i = 0; i < fields.size(); ++i) {
     if (p_dict->Update(fields[i], values[i]) != UNDEFINED) {
       ++count;
@@ -428,21 +521,21 @@ DictVal KVContainer::HashGetValue(const Key &key, const DictKey &field, int &err
   errcode = kOkCode;
   try {
     return RetrievePtr(key, Dict)->At(field);
-  } catch (const std::out_of_range& ex) {
+  } catch (const std::out_of_range &ex) {
     return DictVal();
   }
 }
 
-std::vector<DictVal> KVContainer::HashGetValue(const Key& key, const std::vector<std::string>& fields, int &errcode) {
+std::vector<DictVal> KVContainer::HashGetValue(const Key &key, const std::vector<std::string> &fields, int &errcode) {
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, {})
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, {})
   std::vector<DictVal> values;
   Dict *p_dict = RetrievePtr(key, Dict);
-  for (const auto& field : fields) {
+  for (const auto &field : fields) {
     try {
       values.emplace_back(p_dict->At(field));
-    } catch(const std::out_of_range& ) {
+    } catch (const std::out_of_range &) {
       /* this field can not be found in hashtable */
       values.emplace_back(DictVal());
     }
@@ -464,7 +557,7 @@ int KVContainer::HashDelField(const Key &key, const std::vector<std::string> &fi
   IfKeyNotFoundThenReturn(key, 0)
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, 0)
   int n_erased = 0;
-  for (const auto & field : fields) {
+  for (const auto &field : fields) {
     if (RetrievePtr(key, Dict)->Erase(field) == ERASED) {
       ++n_erased;
     }
@@ -486,10 +579,10 @@ std::vector<DynamicString> KVContainer::HashGetAllEntries(const Key &key, int &e
   IfKeyNotFoundThenReturn(key, {})
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, {});
   errcode = kOkCode;
-  std::vector<HTEntry* > entries = RetrievePtr(key, Dict)->AllEntries();
+  std::vector<HTEntry *> entries = RetrievePtr(key, Dict)->AllEntries();
   std::vector<DynamicString> entries_str;
   entries_str.reserve(entries.size() * 2);
-  for (const auto& p_entry : entries) {
+  for (const auto &p_entry : entries) {
     entries_str.emplace_back(*p_entry->key);
     entries_str.emplace_back(*p_entry->value);
   }

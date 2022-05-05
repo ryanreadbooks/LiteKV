@@ -11,15 +11,16 @@ std::unordered_map<std::string, CommandHandler> Engine::sOpCommandMap = {
     {"exists",    ExistsCommand}, /* check if given keys exist */
     {"type",      TypeCommand},   /* query object type */
     {"expire",    ExpireCommand}, /* set the key expiration */
+    {"expireat",  ExpireAtCommand},/* set key expiration at unix-timestamp*/
     {"ttl",       TTLCommand},    /* get the time to live of a key */
     /* int or string command */
     {"set",       SetCommand},    /* set given key to string or int */
     {"get",       GetCommand},    /* get value on given key */
     /* int command */
-    {"incr",      IncrCommand},   /* TODO not supported, increase int value by 1 on given key */
-    {"decr",      DecrCommand},   /* TODO not supported, decrease int value by 1 on given key */
-    {"incrby",    IncrByCommand}, /* TODO not supported, increase int value by n on given key */
-    {"decrby",    DecrByCommand}, /* TODO not supported, decrease int value by n on given key */
+    {"incr",      IncrCommand},   /* increase int value by 1 on given key */
+    {"decr",      DecrCommand},   /* decrease int value by 1 on given key */
+    {"incrby",    IncrByCommand}, /* increase int value by n on given key */
+    {"decrby",    DecrByCommand}, /* decrease int value by n on given key */
     /* string command */
     {"strlen",    StrlenCommand}, /* get the len of string on given key */
     {"append",    AppendCommand}, /* append value on given key */
@@ -140,7 +141,7 @@ static std::string PackEmptyArrayMsg(size_t size) {
   return arr_ss.str();
 }
 
-std::string Engine::HandleCommand(EventLoop *loop, const CommandCache &cmds) {
+std::string Engine::HandleCommand(EventLoop *loop, const CommandCache &cmds, bool sync) {
   size_t argc = cmds.argc;
   const std::vector<std::string> &argv = cmds.argv;
   assert(argc == argv.size());
@@ -157,7 +158,9 @@ std::string Engine::HandleCommand(EventLoop *loop, const CommandCache &cmds) {
   if (!OpCodeValid(opcode)) {
     return kInvalidOpCodeMsg;
   }
-  return sOpCommandMap[opcode](loop, container_, cmds);
+  /* sync to control whether sync commands to appending_ for persistence */
+  /* sync == true: sync; flag == false: no sync */
+  return sOpCommandMap[opcode](loop, container_, appending_, cmds, sync);
 }
 
 void Engine::HandleCommand(EventLoop *loop, const CommandCache &cmds, Buffer &out_buf) {
@@ -169,29 +172,46 @@ bool Engine::OpCodeValid(const std::string &opcode) {
   return sOpCommandMap.find(opcode) != sOpCommandMap.end();
 }
 
-std::string PingCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+bool Engine::RestoreFromAppendableFile(EventLoop *loop, AppendableFile *history) {
+  if (history) {
+    appending_ = history;
+    std::vector<CommandCache> cmds = history->ReadFromScratch();
+    /* TODO optimize: no need to execute redundant commands that have no effects in the end */
+    for (const auto &cmd : cmds) {
+      // std::cout << cmd;
+      HandleCommand(loop, cmd, false);
+    }
+    std::cout << "Database restore from disk...\n";
+    return true;
+  }
+  return false;
+}
+
+std::string PingCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: ping */
   CheckSyntaxHelper(cmds, 0, 0, false, 'ping')
   return kPONGMsg;
 }
 
-std::string DelCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string DelCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: del key1 key2 key3 ... */
   CheckSyntaxHelper(cmds, -1, 0, false, 'del')  /* multiple keys supported */
   size_t n = holder->Delete(std::vector<std::string>(cmds.argv.begin() + 1, cmds.argv.end()));
+  if (sync) {
+    appendable->Append(cmds);
+  }
   return PackIntReply(n);
 }
 
-std::string ExistsCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string ExistsCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: exists key1 key2 key3 ... */
   CheckSyntaxHelper(cmds, -1, 0, false, 'exists')
   auto keys = std::vector<std::string>(cmds.argv.begin() + 1, cmds.argv.end());
   int n = holder->KeyExists(keys);
   return PackIntReply(n);
-//  return kKeyNoExistsMsg;
 }
 
-std::string TypeCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string TypeCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: type key */
   CheckSyntaxHelper(cmds, 1, 0, false, 'type');
   int obj_type = holder->QueryObjectType(cmds.argv[1]);
@@ -207,7 +227,7 @@ std::string TypeCommand(EventLoop *loop, KVContainer *holder, const CommandCache
   return PackStringMsgReply("none");
 }
 
-std::string ExpireCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string ExpireCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: expire key time */
   CheckSyntaxHelper(cmds, 1, 1, false, 'expire');
   /* find key */
@@ -217,13 +237,16 @@ std::string ExpireCommand(EventLoop *loop, KVContainer *holder, const CommandCac
   }
   int64_t interval;
   if (CanConvertToInt64(cmds.argv[2], interval)) {
-    if (sExpiresMap.find(key) == sExpiresMap.end()) { /* not found */
+    if (sExpiresMap.find(key) == sExpiresMap.end()) { /* no expiration set for key currently */
       /* create new time event for deletion */
-      if (interval >= 0) {
+      if (interval > 0) {
         sExpiresMap[key] = loop->AddTimeEvent((uint64_t) interval * 1000ul, [key, holder]() {
           holder->Delete(Key(key));
           sExpiresMap.erase(key);
         }, 1);
+      } else if (interval == 0) {
+        /* delete right now */
+        holder->Delete(key);
       }
     } else {  /* already has expiration on key */
       /* update already existing time event */
@@ -242,20 +265,56 @@ std::string ExpireCommand(EventLoop *loop, KVContainer *holder, const CommandCac
       }
     }
     /* if expiration set success, return 1 */
+    if (sync) {
+      if (interval >= 0) {
+        /* sync as expireat format, use absolute timestamp */
+        auto now = GetCurrentSec();
+        auto &cmd = const_cast<CommandCache &>(cmds);
+        cmd.argv[0] = "expireat";
+        cmd.argv[2] = std::to_string(now + interval);
+        appendable->Append(cmd);
+      } else {
+        /* remove expiration for key, we can set key to its current value to do it */
+        int errcode = 0;
+        std::vector<std::string> recovered_cmd = holder->RecoverCommand(key, errcode);
+        if (errcode == kOkCode && !recovered_cmd.empty()) {
+          CommandCache cache;
+          cache.inited = true;
+          cache.argc = recovered_cmd.size();
+          cache.argv = recovered_cmd;
+          appendable->Append(cache);
+        }
+      }
+    }
     return kInt1Msg;
   }
   return kInvalidIntegerMsg;
 }
 
-std::string TTLCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string ExpireAtCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
+  /* usage: expireat key unix_sec */
+  CheckSyntaxHelper(cmds, 1, 1, false, 'expireat')
+  const std::string &key = cmds.argv[1];
+  int64_t unix_sec;
+  if (CanConvertToInt64(cmds.argv[2], unix_sec)) {
+    /* leave to expire command handle it */
+    int64_t now = GetCurrentSec();
+    int64_t interval = std::max(unix_sec - now, 0l);  /* seconds */
+    const_cast<CommandCache &>(cmds).argv[2] = std::to_string(interval); /* force modification to const */
+    return ExpireCommand(loop, holder, appendable, cmds, sync);
+  }
+  return kInvalidIntegerMsg;
+}
+
+std::string TTLCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: ttl key */
   CheckSyntaxHelper(cmds, 1, 0, false, 'ttl');
-  const std::string& key = cmds.argv[1];
+  const std::string &key = cmds.argv[1];
   bool found_in_holder = holder->KeyExists(key);
-  bool found_in_expires = sExpiresMap.find(key) != sExpiresMap.end();
   if (!found_in_holder) {
     return kIntMinus2Msg;
   }
+  bool found_in_expires = sExpiresMap.find(key) != sExpiresMap.end();
   if (!found_in_expires) {
     return kIntMinus1Msg;
   }
@@ -264,7 +323,7 @@ std::string TTLCommand(EventLoop *loop, KVContainer *holder, const CommandCache 
   return PackIntReply(ttl);
 }
 
-std::string SetCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string SetCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: set key value */
   CheckSyntaxHelper(cmds, 1, 1, false, 'set')
   const std::string &key = cmds.argv[1];
@@ -278,11 +337,16 @@ std::string SetCommand(EventLoop *loop, KVContainer *holder, const CommandCache 
     /* store as string type */
     res = holder->SetString(key, value);
   }
-  if (res) return kOkMsg;
+  if (res) {
+    if (sync) {
+      appendable->Append(cmds);
+    }
+    return kOkMsg;
+  }
   return kNotOkMsg;
 }
 
-std::string GetCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string GetCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: get key */
   CheckSyntaxHelper(cmds, 1, 0, false, 'get')
   const std::string &key = cmds.argv[1];
@@ -303,27 +367,78 @@ std::string GetCommand(EventLoop *loop, KVContainer *holder, const CommandCache 
   return kNilMsg;
 }
 
-std::string IncrCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
-  /* TODO usage: incr key */
-  return kNotSupportedYetMsg;
+#define IfInt64OverflowThenReturn(errcode) \
+  if (errcode == kOverflowCode) { \
+    return kInt64OverflowMsg; \
+  }
+
+#define IncrDecrCommonHelper(cmds, operation, appendable, sync) \
+  const std::string &key = cmds.argv[1];  \
+  int errcode = 0;  \
+  int64_t ans = holder->operation(key, errcode); \
+  if (errcode == kOkCode) { \
+    if (sync) { \
+      appendable->Append(cmds); \
+    } \
+    return PackIntReply(ans); \
+  } \
+  IfWrongTypeReturn(errcode)  \
+  IfInt64OverflowThenReturn(errcode)  \
+  return kNotOkMsg;
+
+#define IncrDecrCommonHelper2(cmds, operation, appendable, sync) \
+  const std::string& key = cmds.argv[1];  \
+  const std::string& num_str = cmds.argv[2];  \
+  int64_t num;  \
+  if (!CanConvertToInt64(num_str, num)) { \
+    return kInvalidIntegerMsg;  \
+  } \
+  if (num < 0) {  \
+    /* ensure num >= 0 && num <= INT64_MAX */ \
+    return kInvalidIntegerMsg;  \
+  } \
+  int errcode = 0;  \
+  int64_t ans = holder->operation(key, num, errcode); \
+  if (errcode == kOkCode) { \
+    if (sync) { \
+      appendable->Append(cmds); \
+    } \
+    return PackIntReply(ans); \
+  } \
+  IfWrongTypeReturn(errcode)  \
+  IfInt64OverflowThenReturn(errcode)  \
+  return kNotOkMsg;
+
+std::string IncrCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
+  /* usage: incr key */
+  /* This operation is limited to 64 bit signed integers. */
+  CheckSyntaxHelper(cmds, 1, 0, false, 'incr')
+  IncrDecrCommonHelper(cmds, IncrInt, appendable, sync)
 }
 
-std::string DecrCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
-  /* TODO usage: decr key */
-  return kNotSupportedYetMsg;
+std::string DecrCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
+  /* usage: decr key */
+  /* This operation is limited to 64 bit signed integers. */
+  CheckSyntaxHelper(cmds, 1, 0, false, 'decr')
+  IncrDecrCommonHelper(cmds, DecrInt, appendable, sync)
 }
 
-std::string IncrByCommand(EventLoop *loop, KVContainer *holder, const CommandCache &) {
-  /* TODO usage: incrby key value */
-  return kNotSupportedYetMsg;
+std::string IncrByCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
+  /* incrby key value */
+  CheckSyntaxHelper(cmds, 1, 1, false, 'incrby')
+  IncrDecrCommonHelper2(cmds, IncrIntBy, appendable, sync)
 }
 
-std::string DecrByCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
-  /* TODO usage: decrby key value */
-  return kNotSupportedYetMsg;
+std::string DecrByCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
+  /* decrby key value */
+  CheckSyntaxHelper(cmds, 1, 1, false, 'decrby')
+  IncrDecrCommonHelper2(cmds, DecrIntBy, appendable, sync)
 }
 
-std::string StrlenCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+#undef IncrDecrCommonHelper
+#undef IfInt64OverflowThenReturn
+
+std::string StrlenCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: strlen key */
   CheckSyntaxHelper(cmds, 1, 0, false, 'strlen')
   const std::string &key = cmds.argv[1];
@@ -336,7 +451,7 @@ std::string StrlenCommand(EventLoop *loop, KVContainer *holder, const CommandCac
   return PackIntReply(0);
 }
 
-std::string AppendCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string AppendCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: append key value */
   CheckSyntaxHelper(cmds, 1, 1, false, 'append')
   const std::string &key = cmds.argv[1];
@@ -344,6 +459,9 @@ std::string AppendCommand(EventLoop *loop, KVContainer *holder, const CommandCac
   int errcode;
   size_t after_len = holder->Append(key, value, errcode);
   if (errcode == kOkCode) {
+    if (sync) {
+      appendable->Append(cmds);
+    }
     return PackIntReply(after_len);
   }
   IfKeyNotFoundReturn(errcode)
@@ -351,16 +469,16 @@ std::string AppendCommand(EventLoop *loop, KVContainer *holder, const CommandCac
   return kNotOkMsg;
 }
 
-std::string GetRangeCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string GetRangeCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: getrange key begin end */
   return kNotSupportedYetMsg;
 }
 
-std::string SetRangeCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string SetRangeCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   return kNotSupportedYetMsg;
 }
 
-std::string LLenCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string LLenCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: llen key */
   CheckSyntaxHelper(cmds, 1, 0, false, 'llen');
   const std::string &key = cmds.argv[1];
@@ -373,12 +491,15 @@ std::string LLenCommand(EventLoop *loop, KVContainer *holder, const CommandCache
   return PackIntReply(0);
 }
 
-#define ListPopCommandCommon(operator) \
+#define ListPopCommandCommon(cmds, operation, appendable, sync) \
   const std::string &key = cmds.argv[1];  \
   int errcode;  \
-  auto popped = holder->operator(key, errcode);  \
+  auto popped = holder->operation(key, errcode);  \
   if (errcode == kOkCode) { \
     if (!popped.Empty()) {  \
+      if (sync) { \
+        appendable->Append(cmds); \
+      } \
       return PackStringValueReply(popped.ToStdString());  \
     } \
     return kNilMsg; \
@@ -386,50 +507,53 @@ std::string LLenCommand(EventLoop *loop, KVContainer *holder, const CommandCache
     return kWrongTypeMsg; \
   }
 
-std::string LPopCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string LPopCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: lpop key */
   CheckSyntaxHelper(cmds, 1, 0, false, 'lpop')
-  ListPopCommandCommon(LeftPop)
+  ListPopCommandCommon(cmds, LeftPop, appendable, sync)
   return kNilMsg;
 }
 
-std::string RPopCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string RPopCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: rpop key */
   CheckSyntaxHelper(cmds, 1, 0, false, 'rpop')
-  ListPopCommandCommon(RightPop)
+  ListPopCommandCommon(cmds, RightPop, appendable, sync)
   return kNilMsg;
 }
 
 #undef ListPopCommandCommon
 
-#define ListPushCommandCommon(operator) \
+#define ListPushCommandCommon(cmds, operation, appendable, sync) \
   const std::string& key = cmds.argv[1];  \
   const std::vector<std::string>& args = cmds.argv; \
   int errcode;  \
-  size_t list_len = holder->operator(key, std::vector<std::string>(args.begin() + 2, args.end()), errcode); \
+  size_t list_len = holder->operation(key, std::vector<std::string>(args.begin() + 2, args.end()), errcode); \
   if (errcode == kOkCode) { \
+    if (sync) { \
+      appendable->Append(cmds); \
+    } \
     return PackIntReply(list_len);  \
   } else if (errcode == kWrongTypeCode) { \
     return kWrongTypeMsg; \
   }
 
-std::string LPushCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string LPushCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: lpush key value1 value2 ... */
   CheckSyntaxHelper(cmds, 1, -1, false, 'lpush')
-  ListPushCommandCommon(LeftPush)
+  ListPushCommandCommon(cmds, LeftPush, appendable, sync)
   return kNotOkMsg;
 }
 
-std::string RPushCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string RPushCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: rpush key value1 value2 ... */
   CheckSyntaxHelper(cmds, 1, -1, false, 'rpush')
-  ListPushCommandCommon(RightPush)
+  ListPushCommandCommon(cmds, RightPush, appendable, sync)
   return kNotOkMsg;
 }
 
 #undef ListPushCommandCommon
 
-std::string LRangeCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string LRangeCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: lrange key begin end */
   CheckSyntaxHelper(cmds, 1, 2, false, 'lrange')
   const std::string &key = cmds.argv[1];
@@ -452,17 +576,17 @@ std::string LRangeCommand(EventLoop *loop, KVContainer *holder, const CommandCac
   return kArrayEmptyMsg;
 }
 
-std::string LInsertCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string LInsertCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* TODO */
   return kNotSupportedYetMsg;
 }
 
-std::string LRemCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string LRemCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* TODO */
   return kNotSupportedYetMsg;
 }
 
-std::string LSetCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string LSetCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: lsetindex key index value */
   CheckSyntaxHelper(cmds, 1, 2, false, 'lsetindex');
   const std::string &key = cmds.argv[1];
@@ -475,6 +599,9 @@ std::string LSetCommand(EventLoop *loop, KVContainer *holder, const CommandCache
   int errcode;
   holder->ListSetItemAtIndex(key, idx, value, errcode);
   if (errcode == kOkCode) {
+    if (sync) {
+      appendable->Append(cmds);
+    }
     return kOkMsg;
   } else if (errcode == kWrongTypeCode) {
     return kWrongTypeMsg;
@@ -486,7 +613,7 @@ std::string LSetCommand(EventLoop *loop, KVContainer *holder, const CommandCache
   return kNotOkMsg;
 }
 
-std::string LIndexCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string LIndexCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: lindex key index */
   CheckSyntaxHelper(cmds, 1, 1, false, 'lindex');
   const std::string &key = cmds.argv[1];
@@ -505,7 +632,7 @@ std::string LIndexCommand(EventLoop *loop, KVContainer *holder, const CommandCac
   return kNilMsg;
 }
 
-std::string HSetCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string HSetCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: hset key field1 value1 field2 value2 ... */
   CheckSyntaxHelper(cmds, 1, -1, true, 'hset')
   const std::string &key = cmds.argv[1];
@@ -521,13 +648,16 @@ std::string HSetCommand(EventLoop *loop, KVContainer *holder, const CommandCache
   int errcode;
   int count = holder->HashSetKV(Key(key), fields, values, errcode);
   if (errcode == kOkCode && count != 0) {
+    if (sync) {
+      appendable->Append(cmds);
+    }
     return kOkMsg;
   }
   IfWrongTypeReturn(errcode)
   return kNotOkMsg;
 }
 
-std::string HGetCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string HGetCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: hget key field1 field2 ...*/
   CheckSyntaxHelper(cmds, 1, -1, false, 'hget')
   const std::string &key = cmds.argv[1];
@@ -553,7 +683,7 @@ std::string HGetCommand(EventLoop *loop, KVContainer *holder, const CommandCache
   return kArrayEmptyMsg;
 }
 
-std::string HDelCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string HDelCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: hdel key field1 field2 ...*/
   CheckSyntaxHelper(cmds, 1, -1, false, 'hdel')
   const std::string &key = cmds.argv[1];
@@ -562,10 +692,13 @@ std::string HDelCommand(EventLoop *loop, KVContainer *holder, const CommandCache
   std::vector<std::string> fields(cmds.argv.begin() + 2, cmds.argv.end());
   size_t n_deleted = holder->HashDelField(Key(key), fields, errcode);
   IfWrongTypeReturn(errcode)
+  if (sync) {
+    appendable->Append(cmds);
+  }
   return PackIntReply(n_deleted);
 }
 
-std::string HExistsCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string HExistsCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: hexists key field */
   CheckSyntaxHelper(cmds, 1, 1, false, 'hexists')
   const std::string &key = cmds.argv[1];
@@ -589,19 +722,19 @@ std::string HExistsCommand(EventLoop *loop, KVContainer *holder, const CommandCa
   return kArrayEmptyMsg; \
 
 
-std::string HGetAllCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string HGetAllCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: hgetall key */
   CheckSyntaxHelper(cmds, 1, 0, false, 'hgetall')
   HKeysValsEntriesCommon(HashGetAllEntries)
 }
 
-std::string HKeysCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string HKeysCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: hkeys key */
   CheckSyntaxHelper(cmds, 1, 0, false, 'hkeys')
   HKeysValsEntriesCommon(HashGetAllFields)
 }
 
-std::string HValsCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string HValsCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: hvals key*/
   CheckSyntaxHelper(cmds, 1, 0, false, 'hvals')
   HKeysValsEntriesCommon(HashGetAllValues)
@@ -609,7 +742,7 @@ std::string HValsCommand(EventLoop *loop, KVContainer *holder, const CommandCach
 
 #undef HKeysValsEntriesCommon
 
-std::string HLenCommand(EventLoop *loop, KVContainer *holder, const CommandCache &cmds) {
+std::string HLenCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: hlen key */
   CheckSyntaxHelper(cmds, 1, 0, false, 'hlen')
   const std::string &key = cmds.argv[1];
