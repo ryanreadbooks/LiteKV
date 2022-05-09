@@ -15,7 +15,7 @@ void TestAppend(AppendableFile &file) {
 
 int main() {
 
-  AppendableFile file("test.aof", 1024);
+  AppendableFile file("dump.aof", 1024);
 //  TestAppend(file);
 //  file.FlushRightNow();
 //  /* test read file */

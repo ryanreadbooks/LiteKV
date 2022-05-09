@@ -1,4 +1,5 @@
 #include <signal.h>
+#include "config.h"
 #include "net/server.h"
 
 AppendableFile *history;
@@ -11,6 +12,7 @@ void SigIntHandler(int sig_num) {
 }
 
 int main(int argc, char **argv) {
+  std::cout << "Server starting...\n";
   /* sigint handler */
   struct sigaction new_act{}, old_act{};
   new_act.sa_handler = SigIntHandler;
@@ -23,19 +25,27 @@ int main(int argc, char **argv) {
   }
 
   /* Load config */
+  std::string default_conf_filename = "../conf/litekv.conf";
+  if (argc > 2) {
+    default_conf_filename = argv[1];
+  }
+  Config configs(default_conf_filename);
 
   EventLoop loop;
   KVContainer container;
   Engine engine(&container);
-  std::string location = "test.aof";
-  size_t cache_size = 1024;
+  std::string location = configs.GetDumpFilename();
+  size_t cache_size = configs.GetDumpCacheSize();
   history = new AppendableFile(location, cache_size);
 
   auto begin = GetCurrentMs();
   engine.RestoreFromAppendableFile(&loop, history);
   auto spent = GetCurrentMs() - begin;
   std::cout << "DB loaded in " << spent << " ms.. " << std::endl;
-  Server server(&loop, &engine, "127.0.0.1", 9527);
+  Server server(&loop, &engine, configs.GetIp(), configs.GetPort());
+
+  std::cout << "The server is now ready to accept connections on port " << configs.GetPort() << std::endl;
+
   loop.Loop();
 
   return 0;

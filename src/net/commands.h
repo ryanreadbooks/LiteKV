@@ -2,9 +2,9 @@
 #define __ENGINE_H__
 
 #include "../core.h"
+#include "../persistence.h"
 #include "buffer.h"
 #include "net.h"
-#include "../persistence.h"
 
 static const std::array<const char *, 3> kErrStrTable{"WRONGREQ",
                                                       "WRONGTYPE",

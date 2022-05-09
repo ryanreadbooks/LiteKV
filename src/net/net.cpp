@@ -35,7 +35,7 @@ void EventLoop::Loop() {
     return;
   }
   static int debug_n = 1;
-  std::cout << "Event loop working...\n";
+  // std::cout << "Event loop working...\n";
   while (!stopped) {
     // TODO change optimize timeout ms
     uint64_t ms = tev_holder->HowLongTillNextFired();
@@ -126,7 +126,7 @@ bool Epoller::AttachSession(Session *sev) {
   int ans = -1;
   if (!sev->watched) {
     if ((ans = epoll_ctl(epfd_, EPOLL_CTL_ADD, sev->fd, &epev)) == 0) {
-      std::cout << "fd = " << sev->fd << " attached\n";
+      // std::cout << "fd = " << sev->fd << " attached\n";
       sev->watched = true;
     }
   } else {

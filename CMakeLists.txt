@@ -9,6 +9,7 @@ set(SRC
     src/dict.cpp
     src/valueobject.cpp
     src/persistence.cpp
+    src/config.cpp
     src/net/addr.cpp
     src/net/net.cpp
     src/net/server.cpp
@@ -44,6 +45,8 @@ add_executable_and_link(test_static_string "test/test_static_string.cpp" "${SRC}
 add_executable_and_link(test_time_event "test/test_time_event.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_server "test/test_server.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_appendable_file "test/test_appendable_file.cpp" "${SRC}" "${LIBS}")
+add_executable_and_link(generate_pseudo_data "test/generate_pseudo_data.cpp" "${SRC}" "${LIBS}")
+add_executable_and_link(test_config "test/test_config.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(kvmain "src/main.cpp" "${SRC}" "${LIBS}")
 
 # benchmark test

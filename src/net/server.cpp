@@ -70,7 +70,7 @@ void Server::AcceptProc(Session *session, bool &closed) {
   int remote_fd = accept(listen_fd_, addr.GetAddr(), &socklen);
   if (remote_fd != -1) {
     addr.SyncPort();
-    std::cout << "accepted connection from: " << addr.ToString() << std::endl;
+    // std::cout << "accepted connection from: " << addr.ToString() << std::endl;
     char buf[64];
     memset(buf, 0, sizeof(buf));
     snprintf(buf, sizeof buf, "*%s#%d", addr.ToString().c_str(), next_session_id_++);
@@ -81,12 +81,12 @@ void Server::AcceptProc(Session *session, bool &closed) {
         std::bind(&Server::ReadProc, this, _1, _2),
         std::bind(&Server::WriteProc, this, _1, _2),
         loop_, sess_name);
-    std::cout << "accepted  session = " << sess << std::endl;
+    // std::cout << "accepted  session = " << sess << std::endl;
     if (sess != nullptr) {
       /* attach new session into epoll */
       SetFdNonBlock(remote_fd);
       if (loop_->epoller->AttachSession(sess)) {
-        std::cout << "fd=" << sess->fd << " added into eventloop watch\n";
+        // std::cout << "fd=" << sess->fd << " added into eventloop watch\n";
         sess->watched = true;
         sessions_[sess_name] = std::shared_ptr<Session>(sess);
       }
@@ -121,21 +121,6 @@ void Server::ReadProc(Session *session, bool &closed) {
   }
   // std::cout << "Received bytes = " << nbytes << std::endl;
   buffer.Append(buf, nbytes);
-  auto show_buffer = [&]() {
-    std::string ans = buffer.ReadableAsString();
-    std::cout << "Buffer => ";
-    for (auto &ch : ans) {
-      if (ch == '\r') {
-        std::cout << "\\r";
-      } else if (ch == '\n') {
-        std::cout << "\\n";
-      } else {
-        std::cout << ch;
-      }
-    }
-    std::cout << std::endl;
-  };
-  show_buffer();
   /*　parse request */
   /* continue processing from cache */
   size_t parse_start_idx = buffer.BeginReadIdx();
@@ -168,7 +153,6 @@ void Server::ReadProc(Session *session, bool &closed) {
         return;
       }
     } else {
-      show_buffer();
       AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
       AuxiliaryReadProcParseErrorHandling(session);
       return;
@@ -188,7 +172,7 @@ void Server::ReadProc(Session *session, bool &closed) {
       goto parse_protocol_new_request;
     }
   }
-  std::cout << "===============================" << std::endl;
+  // std::cout << "===============================" << std::endl;
 }
 
 void Server::FillErrorMsg(Buffer &buffer, ErrType errtype, const char *msg) const {
@@ -207,12 +191,12 @@ void Server::WriteProc(Session *session, bool &closed) {
     loop_->epoller->ModifySession(session);
     return;
   }
-  std::cout << "Doing write process, write buffer is => " << buffer.ReadableAsString() << std::endl;
+  // std::cout << "Doing write process, write buffer is => " << buffer.ReadableAsString() << std::endl;
   /* ensure all data has been sent, then unregister EPOLLOUT to this fd */
   size_t readable_bytes = buffer.ReadableBytes();
   /* FIXME bug */
   int nbytes = WriteFromBuf(fd, static_cast<const char *>(buffer.BeginRead()), readable_bytes);
-  std::cout << "Send " << nbytes << " bytes response to client, readable_bytes = " << readable_bytes <<"\n";
+  // std::cout << "Send " << nbytes << " bytes response to client, readable_bytes = " << readable_bytes <<"\n";
   /* FIXME optimize */
   if ((size_t)nbytes == readable_bytes) {
     session->SetRead();
