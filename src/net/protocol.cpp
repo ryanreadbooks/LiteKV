@@ -64,7 +64,6 @@ bool TryParseFromBuffer(Buffer &buffer, CommandCache &cache, bool &err) {
     }
   };
 
-  // 将缓冲区长度不够了和缓冲区长度够，但是读取出来的不是预想的字符分开
   if (buffer.ReadableBytes() <= 0) {
     return false;
   }
@@ -132,7 +131,8 @@ bool TryParseFromBuffer(Buffer &buffer, CommandCache &cache, bool &err) {
     std::string arg = buffer.ReadStdStringFrom(cur_idx, next_arg_len);
     cache.argv.emplace_back(arg);
 //    std::cout << arg << std::endl;
-    if (arg.empty() || arg.size() != (size_t) next_arg_len) {
+    /* arg might be empty and this is allowed */
+    if (arg.size() != (size_t) next_arg_len) {
       if (buffer.ReadableBytes() - cur_idx >= (size_t) next_arg_len) {
         err = true;
       }

@@ -63,6 +63,8 @@ private:
 };
 
 /* generic command */
+std::string OverviewCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
 std::string PingCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
 
 std::string DelCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);

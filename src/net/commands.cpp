@@ -6,6 +6,7 @@
 
 std::unordered_map<std::string, CommandHandler> Engine::sOpCommandMap = {
     /* generic command */
+    {"overview",  OverviewCommand},/* get database overview  */
     {"ping",      PingCommand},   /* ping-pong test */
     {"del",       DelCommand},    /* delete given keys */
     {"exists",    ExistsCommand}, /* check if given keys exist */
@@ -145,7 +146,6 @@ std::string Engine::HandleCommand(EventLoop *loop, const CommandCache &cmds, boo
   size_t argc = cmds.argc;
   const std::vector<std::string> &argv = cmds.argv;
   assert(argc == argv.size());
-
   /* Commands contents
   *  +------------+----------+-------------------------+
   *  |   argv[0]  |  argv[1] |   argv[2] ... argv[n]   |
@@ -185,6 +185,12 @@ bool Engine::RestoreFromAppendableFile(EventLoop *loop, AppendableFile *history)
     return true;
   }
   return false;
+}
+
+std::string OverviewCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
+  /* usage: ping */
+  CheckSyntaxHelper(cmds, 0, 0, false, 'overview')
+  return PackStringMsgReply(holder->Overview());
 }
 
 std::string PingCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {

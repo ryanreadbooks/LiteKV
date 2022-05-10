@@ -103,11 +103,15 @@ void Server::AuxiliaryReadProcParseErrorHandling(Session *session) {
   loop_->epoller->ModifySession(session);
 }
 
+/* FIXME: Can not handle huge flow of request coming in */
 void Server::ReadProc(Session *session, bool &closed) {
+  static int64_t n_total_bytes_recv = 0;
+  static int64_t n_response = 0;
+
   int fd = session->fd;
   Buffer &buffer = session->read_buf;
   CommandCache &cache = session->cache;
-  char buf[4096];
+  char buf[NET_READ_BUF_SIZE];
   int nbytes = ReadToBuf(fd, buf, sizeof(buf));
   if (nbytes == 0) {
     /* close connection */
@@ -116,63 +120,77 @@ void Server::ReadProc(Session *session, bool &closed) {
     close(fd);
     sessions_.erase(session->name);
     std::cout << "Client exit, now close connection...\n";
+    std::cout << "Total bytes received = " << n_total_bytes_recv << std::endl;
     closed = true;
     return;
   }
   // std::cout << "Received bytes = " << nbytes << std::endl;
+  n_total_bytes_recv += nbytes;
   buffer.Append(buf, nbytes);
-  /*　parse request */
-  /* continue processing from cache */
-  /* TODO refactor code */
-  size_t parse_start_idx = buffer.BeginReadIdx();
-  if (cache.inited && cache.argc > cache.argv.size()) {
-    if (!AuxiliaryReadProc(buffer, cache, nbytes)) {
-      AuxiliaryReadProcParseErrorHandling(session);
-      return;
-    }
-  } else { /* cache not inited or this is a brand new command request */
-    parse_protocol_new_request:
-    if (buffer.ReadStdString(1) == "*") { /* a brand new command */
-      buffer.ReaderIdxForward(1);
-      /* argc */
-      size_t step;
-      cache.argc = buffer.ReadLongAndForward(step);
-      if (buffer.ReadStdString(2) != kCRLF) {
-        AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
-        AuxiliaryReadProcParseErrorHandling(session);
-        return;
-      }
-      if (buffer.ReadStdString(2) != kCRLF) {
-        AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
-        AuxiliaryReadProcParseErrorHandling(session);
-        return;
-      }
-      buffer.ReaderIdxForward(2);
-      cache.inited = true;
-      if (!AuxiliaryReadProc(buffer, cache, nbytes)) {
-        AuxiliaryReadProcParseErrorHandling(session);
-        return;
-      }
-    } else {
-      AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
-      AuxiliaryReadProcParseErrorHandling(session);
-      return;
-    }
-  }
-  /* successfully parse one whole request, use it to operator the database */
-  if (cache.argc != 0 && cache.argc == cache.argv.size()) {
-    /*　one whole command fully received till now, process it */
+
+  bool err = false;
+  while (TryParseFromBuffer(buffer, cache, err) && !err) {
     std::string handle_result = engine_->HandleCommand(loop_, cache);
     session->write_buf.Append(handle_result);
     session->SetWrite();
-    loop_->epoller->ModifySession(session);/* FIXME no need to modify session every time */
+    n_response++;
+    loop_->epoller->ModifySession(session);
     /* clear cache when one command is fully parsed */
     cache.Clear();
-    /* handle multiple request commands received in one read */
-    if (buffer.ReadableBytes() > 0 && buffer.ReadStdString(1) == "*") {
-      goto parse_protocol_new_request;
-    }
   }
+
+  /*　parse request */
+  /* continue processing from cache */
+//  size_t parse_start_idx = buffer.BeginReadIdx();
+//  if (cache.inited && cache.argc > cache.argv.size()) {
+//    if (!AuxiliaryReadProc(buffer, cache, nbytes)) {
+//      AuxiliaryReadProcParseErrorHandling(session);
+//      return;
+//    }
+//  } else { /* cache not inited or this is a brand new command request */
+//    parse_protocol_new_request:
+//    if (buffer.ReadStdString(1) == "*") { /* a brand new command */
+//      buffer.ReaderIdxForward(1);
+//      /* argc */
+//      size_t step;
+//      cache.argc = buffer.ReadLongAndForward(step);
+//      if (buffer.ReadStdString(2) != kCRLF) {
+//        AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
+//        AuxiliaryReadProcParseErrorHandling(session);
+//        return;
+//      }
+//      if (buffer.ReadStdString(2) != kCRLF) {
+//        AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
+//        AuxiliaryReadProcParseErrorHandling(session);
+//        return;
+//      }
+//      buffer.ReaderIdxForward(2);
+//      cache.inited = true;
+//      if (!AuxiliaryReadProc(buffer, cache, nbytes)) {
+//        AuxiliaryReadProcParseErrorHandling(session);
+//        return;
+//      }
+//    } else {
+//      AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
+//      AuxiliaryReadProcParseErrorHandling(session);
+//      return;
+//    }
+//  }
+//  /* successfully parse one whole request, use it to operator the database */
+//  if (cache.argc != 0 && cache.argc == cache.argv.size()) {
+//    /*　one whole command fully received till now, process it */
+//    std::string handle_result = engine_->HandleCommand(loop_, cache);
+//    session->write_buf.Append(handle_result);
+//    session->SetWrite();
+//    loop_->epoller->ModifySession(session);/* FIXME no need to modify session every time */
+//    /* clear cache when one command is fully parsed */
+//    cache.Clear();
+//    n_response++;
+//    /* handle multiple request commands received in one read */
+//    if (buffer.ReadableBytes() > 0 && buffer.ReadStdString(1) == "*") {
+//      goto parse_protocol_new_request;
+//    }
+//  }
 }
 
 void Server::FillErrorMsg(Buffer &buffer, ErrType errtype, const char *msg) const {
@@ -198,7 +216,7 @@ void Server::WriteProc(Session *session, bool &closed) {
   int nbytes = WriteFromBuf(fd, static_cast<const char *>(buffer.BeginRead()), readable_bytes);
   // std::cout << "Send " << nbytes << " bytes response to client, readable_bytes = " << readable_bytes <<"\n";
   /* FIXME optimize */
-  if ((size_t)nbytes == readable_bytes) {
+  if ((size_t) nbytes == readable_bytes) {
     session->SetRead();
     loop_->epoller->ModifySession(session);
     buffer.Reset();

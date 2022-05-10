@@ -58,10 +58,10 @@ std::string KVContainer::Overview() const {
     }
   }
   std::stringstream ss;
-  ss << "Number of int: " << n_int << std::endl
-     << "Number of string: " << n_str << std::endl
-     << "Number of list: " << n_list << ", total elements: " << n_list_elem << std::endl
-     << "Number of hash: " << n_dict << ", total entries: " << n_dict_entry << std::endl;
+  ss << "Number of int: " << n_int
+     << "\tNumber of string: " << n_str
+     << "\tNumber of list: " << n_list << ", total elements: " << n_list_elem
+     << "\tNumber of hash: " << n_dict << ", total entries: " << n_dict_entry;
   return ss.str();
 }
 
@@ -230,9 +230,10 @@ bool KVContainer::SetString(const Key &key, const std::string &value) {
     if (type == OBJECT_STRING) {
       /* override existing string object */
       RetrievePtr(key, DynamicString)->Reset(value);
-    } else if (type == OBJECT_LIST) {
+    } else if (type == OBJECT_LIST || type == OBJECT_HASH) {
       bucket.content[key]->FreePtr();
-    } else if (type == OBJECT_INT) {
+    }
+    if (type == OBJECT_INT || type == OBJECT_LIST || type == OBJECT_HASH) {
       /* construct a new dynamic string object */
       DynamicString *dsptr = new(std::nothrow) DynamicString(value);
       if (dsptr == nullptr) {

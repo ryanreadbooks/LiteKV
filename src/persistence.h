@@ -10,6 +10,8 @@
 #include "net/net.h"
 #include "net/commands.h"
 
+#define RESTORE_AOF_READ_BUF_SIZE 1024 * 64
+
 class Engine;
 
 class AppendableFile {

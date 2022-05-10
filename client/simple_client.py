@@ -1,5 +1,10 @@
 import argparse
+import random
 import socket
+from time import sleep
+
+from cv2 import add
+
 
 # gen_command(cmd, key, [argv0, argv1, ...])
 def gen_command(cmd, key, argv):
@@ -127,11 +132,100 @@ def process_commands(data: str):
     return tokens
 
 
+def generate_pesudo_cmds(n):
+    kcan = '0123456789abcdefg'
+    def random_str(a, b):
+        return kcan[random.randint(0, 16)] * random.randint(0, a) + kcan[random.randint(0, 16)] * random.randint(0, b)
+    ret = None
+    cmds = []
+    for i in range(n):
+        option = random.randint(1, 4)
+        key = random_str(8, 3)
+        if option == 1:
+            # int
+            get_or_set = random.randint(0, 1)
+            if get_or_set == 0:
+                # get
+                ret = ['get', key]
+            else:
+                # set
+                ret = ['set', key, str(random.randint(10, 10000))]
+        elif option == 2:
+            # string
+            get_or_set = random.randint(0, 1)
+            if get_or_set == 0:
+                # get
+                ret = ['get', key]
+            else:
+                # set
+                val = random_str(5, 5)
+                ret = ['set', key, val]
+        elif option == 3:
+            # list
+            list_op = random.randint(0, 3)
+            if list_op == 0:
+                # lpush
+                ret = ['lpush', key]
+                vals = [str(i) for i in range(random.randint(1, 8))]
+                ret.extend(vals)
+            elif list_op == 1:
+                # rpush
+                ret = ['rpush', key]
+                vals = [str(i) for i in range(random.randint(1, 8))]
+                ret.extend(vals)
+            elif list_op == 2:
+                # lpop
+                ret = ['lpop', key]
+            else:
+                # rpop
+                ret = ['rpop', key]
+        else:
+            # hash
+            hop = random.randint(0, 7)
+            field = random_str(2, 6)
+            if hop == 0:
+                n_pair = random.randint(1, 10)
+                fvs = []
+                for j in range(n_pair):
+                    fvs.append(random_str(2, 5))
+                    fvs.append(random_str(2, 5))
+                ret = ['hset', key, *fvs]
+            elif hop == 1:
+                # get
+                ret = ['hget', key, field]
+            elif hop == 2:
+                # del
+                ret = ['hdel', key, field]    
+            elif hop == 3:
+                # exists
+                ret = ['hexists', key, field]
+            elif hop == 4:
+                # getall
+                ret = ['hgetall', key]
+            elif hop == 5:
+                # keys
+                ret = ['hkeys', key]
+            elif hop == 6:
+                # vals
+                ret = ['hvals', key]
+            else:
+                # len
+                ret = ['hlen', key]
+
+        cmds.append(ret)
+
+    return cmds
+
+
+
 arg_parser = argparse.ArgumentParser(description='LiteKV simple client')
 arg_parser.add_argument('-a', '--address', type=str, default='127.0.0.1', dest='ip', help='The ip address of the database')
 arg_parser.add_argument('-p', '--port', type=int, default=9527, dest='port', help='The port of the database')
 arg_parser.add_argument('-r', '--raw', action='store_true', default=False, dest='raw', help='Show raw response from server')
 arg_parser.add_argument('-d', '--debug', action='store_true', default=False, dest='debug', help='Turn on debug mode')
+arg_parser.add_argument('-f', '--flood', action='store_true', default=False, dest='flood', help='Send massive commands to server. Turn on flood mode')
+arg_parser.add_argument('-n', '--n-cmds', type=int, default=1000, dest='ncmds', help='Number of commands per request sending to server when in flood mode')
+arg_parser.add_argument('-q', '--n-request', type=int, default=10000, dest='nreq', help='Number of total requests when in flood mode')
 
 args = arg_parser.parse_args()
 
@@ -140,32 +234,68 @@ if __name__ == '__main__':
     port = args.port
     show_raw_response = args.raw
     debug = args.debug
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-    s.connect((ip, port))
-    while True:
-        print(f'{ip}:{port}> ', end='')
-        inputcmd = input()
-        argvs = process_commands(inputcmd)
-        if debug:
-          print(f'input arguments: {argvs}')
-        if argvs is None:
-            print('Invalid arguments')
-            continue
-        if len(inputcmd) == 1 and inputcmd[0] == 'q':
-            break
-        if len(argvs) == 1:
-            data = gen_command(argvs[0], None, None)
-        elif len(argvs) == 2:
-            data = gen_command(argvs[0], argvs[1], [])
-        else:
-            data = gen_command(argvs[0], argvs[1], argvs[2:])
-        toserver = bytes(data, encoding='utf8')
-        s.sendall(toserver)
-        recv_msg = s.recv(8192)
-        reply_msg = decode_reply(recv_msg)
-        if show_raw_response:
-            print('Raw response = ', recv_msg)
-        print(reply_msg)
-
-    print('Goodbye.')
-    s.close()
+    flood_mode = args.flood
+    n_cmds = args.ncmds
+    n_req = args.nreq
+    if not flood_mode:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+        s.connect((ip, port))
+        while True:
+            print(f'{ip}:{port}> ', end='')
+            inputcmd = input()
+            argvs = process_commands(inputcmd)
+            if debug:
+                print(f'input arguments: {argvs}')
+            if argvs is None:
+                print('Invalid arguments')
+                continue
+            if len(inputcmd) == 1 and inputcmd[0] == 'q':
+                break
+            if len(argvs) == 1:
+                data = gen_command(argvs[0], None, None)
+            elif len(argvs) == 2:
+                data = gen_command(argvs[0], argvs[1], [])
+            else:
+                data = gen_command(argvs[0], argvs[1], argvs[2:])
+            toserver = bytes(data, encoding='utf8')
+            s.sendall(toserver)
+            recv_msg = s.recv(8192)
+            reply_msg = decode_reply(recv_msg)
+            if show_raw_response:
+                print('Raw response = ', recv_msg)
+            print(reply_msg)
+        print('Goodbye.')
+        s.close()
+    else:
+        # flood the server
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+        s.connect((ip, port))
+        print(f'Connected to server ({ip}, {port})')
+        print(f'{n_req} requests are performing, every request has {n_cmds} commands in it... ')
+        # random generate commands
+        total_bytes = 0
+        for i in range(n_req):
+            pesudo_cmds = generate_pesudo_cmds(n=n_cmds)    # List[List]
+            data = ''
+            if debug:
+                print(f'len of commands in this request = {len(pesudo_cmds)}')
+            for argvs in pesudo_cmds:
+                if len(argvs) == 1:
+                    data += gen_command(argvs[0], None, None)
+                elif len(argvs) == 2:
+                    data += gen_command(argvs[0], argvs[1], [])
+                else:
+                    data += gen_command(argvs[0], argvs[1], argvs[2:])
+                if debug:
+                    print(argvs)
+            toserver = bytes(data, encoding='utf8')
+            total_bytes += len(toserver)
+            if debug:
+                print(f'total bytes = {len(toserver)}')
+            # print(toserver)
+            s.sendall(toserver)
+            sleep(0.0001)
+        print(f'Total bytes sent = {total_bytes}')
+        print('Done')
+        sleep(20)
+        s.close()

@@ -108,7 +108,11 @@ struct Session {
   }
 
   void SetWrite() {
-    mask = EPOLLOUT;
+    mask |= EPOLLOUT;
+  }
+
+  void DisableWrite() {
+    mask = EPOLLIN;
   }
 
   void SetReadWrite() {

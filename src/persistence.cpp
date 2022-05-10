@@ -21,6 +21,7 @@ AppendableFile::AppendableFile(std::string location, size_t cache_size)
 
 AppendableFile::~AppendableFile() {
   /* flush all existing caches and then clear space */
+  std::cout << "Saving database file into disk...\n";
   stopped_ = true;
   cond_.notify_one();
   worker_.join();
@@ -29,6 +30,7 @@ AppendableFile::~AppendableFile() {
   cache1_.clear();
   cache2_.clear();
   fs_.close();
+  std::cout << "Database file saved on disk. \n";
 }
 
 void AppendableFile::BackgroundHandler() {
@@ -68,9 +70,8 @@ std::vector<CommandCache> AppendableFile::ReadFromScratch() {
     Buffer buffer;
     CommandCache cache;
     int64_t n_cur_read = 0;
-    int times = 0;
     while (!ifs.eof()) {
-      char buf[4096 * 8];
+      char buf[RESTORE_AOF_READ_BUF_SIZE];
       memset(buf, 0, sizeof(buf));
       ifs.read(buf, sizeof(buf));
       size_t n_read = ifs.gcount();
@@ -98,7 +99,7 @@ std::vector<CommandCache> AppendableFile::ReadFromScratch() {
     }
     std::cout << "\nTotal " << ans.size() << " records loaded\n";
     std::cout << "File length = " << length << " bytes, total_read = "
-    << n_cur_read << " bytes." << std::endl;
+              << n_cur_read << " bytes." << std::endl;
     return ans;
   }
   return ans;
