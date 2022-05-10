@@ -54,13 +54,13 @@ struct CommandCache {
 
   std::string ToProtocolString() const {
     std::stringstream ss;
-    ss << '*' << argc << '\r' << '\n';
+    ss << "*" << argc << "\r\n";
     for (const auto &item : argv) {
       if (item.empty()) {
         ss << "$0\r\n\r\n";
       } else {
-        ss << '$' << item.size() << '\r' << '\n'
-            << item << '\r' << '\n';
+        ss << "$" << item.size() << "\r\n"
+            << item << "\r\n";
       }
     }
     return ss.str();

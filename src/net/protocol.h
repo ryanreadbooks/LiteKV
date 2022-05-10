@@ -26,4 +26,6 @@ void AuxiliaryReadProcCleanup(Buffer &buffer, CommandCache &cache, size_t begin_
  */
 bool AuxiliaryReadProc(Buffer &buffer, CommandCache &cache, int nbytes);
 
+bool TryParseFromBuffer(Buffer& buffer, CommandCache& cache, bool &err);
+
 #endif // __PROTOCOL_H__

@@ -69,15 +69,23 @@ public:
 
   std::string ReadStdString(size_t len);
 
-  std::string ReadStdStringAndForward(const char* delim = "\r\n");
+  std::string ReadStdStringFrom(size_t index, size_t len);
+
+  char ReadableCharacterAt(size_t index) const;
+
+  std::string ReadStdStringAndForwardTill(const char* delim = "\r\n");
 
   DynamicString ReadDynaStringAndForward(size_t len);
 
   DynamicString ReadDynaString(size_t len);
 
-  DynamicString ReadAndForward(const char *delim = "\r\n");
+  DynamicString ReadAndForwardTill(const char *delim = "\r\n");
 
   long ReadLongAndForward(size_t& step);
+
+  long ReadLong(size_t& step);
+
+  long ReadLongFrom(size_t index, size_t& step);
 
 private:
   void EnsureBytesForWrite(size_t n);

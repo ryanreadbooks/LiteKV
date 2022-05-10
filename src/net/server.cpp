@@ -123,6 +123,7 @@ void Server::ReadProc(Session *session, bool &closed) {
   buffer.Append(buf, nbytes);
   /*　parse request */
   /* continue processing from cache */
+  /* TODO refactor code */
   size_t parse_start_idx = buffer.BeginReadIdx();
   if (cache.inited && cache.argc > cache.argv.size()) {
     if (!AuxiliaryReadProc(buffer, cache, nbytes)) {
@@ -172,7 +173,6 @@ void Server::ReadProc(Session *session, bool &closed) {
       goto parse_protocol_new_request;
     }
   }
-  // std::cout << "===============================" << std::endl;
 }
 
 void Server::FillErrorMsg(Buffer &buffer, ErrType errtype, const char *msg) const {

@@ -10,7 +10,7 @@ bool AuxiliaryReadProc(Buffer &buffer, CommandCache &cache, int nbytes) {
   /* Helper function to parse request command */
   size_t begin_idx = buffer.BeginReadIdx();
   while (buffer.ReadableBytes() > 0 && cache.argc > cache.argv.size()) {
-    DynamicString line = buffer.ReadAndForward(CRLF);
+    DynamicString line = buffer.ReadAndForwardTill(CRLF);
     if (line.Empty()) {
       /* can not form an whole item, wait for more data coming in */
       break;
@@ -35,5 +35,128 @@ bool AuxiliaryReadProc(Buffer &buffer, CommandCache &cache, int nbytes) {
     buffer.ReaderIdxForward(2);
     cache.argv.emplace_back(arg);
   }
+  return true;
+}
+
+bool TryParseFromBuffer(Buffer &buffer, CommandCache &cache, bool &err) {
+  auto show_buffer = [](Buffer &s) {
+    for (auto &c : s.ReadableAsString()) {
+      if (c == '\r') {
+        std::cout << "\\r";
+      } else if (c == '\n') {
+        std::cout << "\\n";
+      } else {
+        std::cout << c;
+      }
+    }
+    std::cout << std::endl;
+  };
+
+  auto show_str = [](const std::string& s) {
+    if (s.empty()) {
+      std::cout << "(nil)\n";
+    } else if (s == "\r") {
+      std::cout << "\\r\n";
+    } else if (s == "\n") {
+      std::cout << "\\n\n";
+    } else {
+      std::cout << s << std::endl;
+    }
+  };
+
+  // 将缓冲区长度不够了和缓冲区长度够，但是读取出来的不是预想的字符分开
+  if (buffer.ReadableBytes() <= 0) {
+    return false;
+  }
+  /* a whole protocol must start from * */
+  if (buffer.ReadStdString(1) != "*") {
+    if (buffer.ReadableBytes() >= 1) {  /* have enough bytes, but can not find '*', invalid */
+      err = true;
+    }
+    buffer.Reset();
+    return false;
+  }
+  size_t step;
+  size_t cur_idx = 1;
+  long n_para = buffer.ReadLongFrom(cur_idx, step);
+  if (step == 0) {
+    if (buffer.ReadableBytes() > 0) {
+      err = true;
+    }
+    cache.Clear();
+    return false; /* protocol string not complete, till next time */
+  }
+  cache.argc = (size_t) n_para;
+  /* next two bytes is \r\n */
+  cur_idx += step;
+  if (buffer.ReadStdStringFrom(cur_idx, 2) != "\r\n") {
+    if (buffer.ReadableBytes() - cur_idx >= 2) {
+      err = true;
+    }
+    cache.Clear();
+    return false;
+  }
+  cur_idx += 2;
+  while (n_para > 0) {
+    if (cur_idx >= buffer.ReadableBytes()) {  /* not enough data */
+      return false;
+    }
+    /* next is $ */
+    if (buffer.ReadableCharacterAt(cur_idx) != '$') {
+      if (buffer.ReadableBytes() > cur_idx) {
+        err = true;
+      }
+      cache.Clear();
+      return false;
+    }
+    ++cur_idx;
+    long next_arg_len = buffer.ReadLongFrom(cur_idx, step);
+    if (step == 0) {
+      if (buffer.ReadableBytes() - cur_idx > 0) {
+        err = true;
+      }
+      cache.Clear();
+      return false;
+    }
+    cur_idx += step;
+    /* next two bytes is \r\n */
+    if (buffer.ReadStdStringFrom(cur_idx, 2) != "\r\n") {
+      if (buffer.ReadableBytes() - cur_idx >= 2) {
+        err = true;
+      }
+      cache.Clear();
+      return false;
+    }
+    cur_idx += 2;
+    /* read next_arg_len consecutive bytes */
+    std::string arg = buffer.ReadStdStringFrom(cur_idx, next_arg_len);
+    cache.argv.emplace_back(arg);
+//    std::cout << arg << std::endl;
+    if (arg.empty() || arg.size() != (size_t) next_arg_len) {
+      if (buffer.ReadableBytes() - cur_idx >= (size_t) next_arg_len) {
+        err = true;
+      }
+      cache.Clear();
+      return false;
+    }
+    cur_idx += next_arg_len;
+    /* next two bytes is \r\n */
+    if (buffer.ReadStdStringFrom(cur_idx, 2) != "\r\n") {
+      if (buffer.ReadableBytes() - cur_idx >= 2) {
+        err = true;
+      }
+      cache.Clear();
+      return false;
+    }
+    cur_idx += 2;
+    --n_para;
+  }
+  /* finish parsing one */
+  cache.inited = true;
+  if (cache.argc != cache.argv.size()) {
+    cache.Clear();
+    return false;
+  }
+  buffer.ReaderIdxForward(cur_idx);
   return true;
 }

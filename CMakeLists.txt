@@ -47,6 +47,8 @@ add_executable_and_link(test_server "test/test_server.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_appendable_file "test/test_appendable_file.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(generate_pseudo_data "test/generate_pseudo_data.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_config "test/test_config.cpp" "${SRC}" "${LIBS}")
+add_executable_and_link(test_protocol "test/test_protocol.cpp" "${SRC}" "${LIBS}")
+add_executable_and_link(test_buffer "test/test_buffer.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(kvmain "src/main.cpp" "${SRC}" "${LIBS}")
 
 # benchmark test

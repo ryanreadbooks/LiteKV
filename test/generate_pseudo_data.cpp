@@ -4,13 +4,13 @@
 #include "../src/net/commands.h"
 
 int main(int argc, char **argv) {
-  if (argc != 2) {
-    std::cout << "Usage: ./generate_pseudo_data kNumRecord\n";
+  if (argc != 3) {
+    std::cout << "Usage: ./generate_pseudo_data kNumRecord dumpfile\n";
     return 0;
   }
-  std::string filename = "dump.aof";
+  std::string filename = argv[2];
 
-  std::ofstream ofs(filename, std::ios::app);
+  std::ofstream ofs(filename, std::ios::app | std::ios::binary);
   char *p;
   int kNumRecord = std::strtol(argv[1], &p, 10);
 

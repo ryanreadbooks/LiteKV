@@ -13,9 +13,9 @@ void TestAppend(AppendableFile &file) {
   std::cout << "Appended\n";
 }
 
-int main() {
-
-  AppendableFile file("dump.aof", 1024);
+int main(int argc, char** argv) {
+  std::string dpname = argv[1];
+  AppendableFile file(dpname, 1024);
 //  TestAppend(file);
 //  file.FlushRightNow();
 //  /* test read file */
