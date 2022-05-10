@@ -3,6 +3,17 @@
 ### LiteKV is a simple key-value storage implementation. 
 
 ---
+
+### Build
+
+```bash
+
+mkdir build
+cd build
+cmake ..
+make
+```
+
 ### Supported data types
 * integer
 * string

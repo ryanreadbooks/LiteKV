@@ -43,7 +43,6 @@ add_executable_and_link(test_dynamic_string "test/test_dynamic_string.cpp" "${SR
 add_executable_and_link(test_dict "test/test_dict.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_static_string "test/test_static_string.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_time_event "test/test_time_event.cpp" "${SRC}" "${LIBS}")
-add_executable_and_link(test_server "test/test_server.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_appendable_file "test/test_appendable_file.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(generate_pseudo_data "test/generate_pseudo_data.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_config "test/test_config.cpp" "${SRC}" "${LIBS}")

@@ -26,7 +26,7 @@ int main(int argc, char **argv) {
 
   /* Load config */
   std::string default_conf_filename = "../conf/litekv.conf";
-  if (argc > 2) {
+  if (argc >= 2) {
     default_conf_filename = argv[1];
   }
   Config configs(default_conf_filename);
