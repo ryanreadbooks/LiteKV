@@ -297,5 +297,5 @@ if __name__ == '__main__':
             sleep(0.0001)
         print(f'Total bytes sent = {total_bytes}')
         print('Done')
-        sleep(20)
+        sleep(8)
         s.close()

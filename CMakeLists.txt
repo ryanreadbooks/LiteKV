@@ -57,6 +57,8 @@ add_executable_and_link(benchmark_string "benchmark/benchmark_string.cpp" "${SRC
 add_executable_and_link(benchmark_list "benchmark/benchmark_list.cpp" "${SRC}" "${LIBS}")
 
 if (TCMALLOC_LIB)
+  set_target_properties(kvmain PROPERTIES COMPILE_FLAGS "-O2 -DTCMALLOC_FOUND")
+  target_link_libraries(kvmain tcmalloc)
   set_target_properties(benchmark_int PROPERTIES COMPILE_FLAGS "-O2 -DTCMALLOC_FOUND")
   target_link_libraries(benchmark_int tcmalloc)
   set_target_properties(benchmark_string PROPERTIES COMPILE_FLAGS "-O2 -DTCMALLOC_FOUND")

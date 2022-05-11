@@ -1,6 +1,10 @@
 #include <signal.h>
 #include "config.h"
 #include "net/server.h"
+#ifdef TCMALLOC_FOUND
+#include <gperftools/malloc_extension.h>
+#include <gperftools/heap-profiler.h>
+#endif
 
 AppendableFile *history;
 
@@ -12,6 +16,10 @@ void SigIntHandler(int sig_num) {
 }
 
 int main(int argc, char **argv) {
+#ifdef TCMALLOC_FOUND
+  MallocExtension::Initialize();
+  std::cout << "Tcmalloc Initialized.\n";
+#endif
   std::cout << "Server starting...\n";
   /* sigint handler */
   struct sigaction new_act{}, old_act{};

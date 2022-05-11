@@ -28,6 +28,8 @@ public:
 
   void FlushRightNow();
 
+  void ReadFromScratch(Engine* engine, EventLoop* loop);
+
   std::vector<CommandCache> ReadFromScratch();
 
 private:

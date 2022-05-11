@@ -175,12 +175,8 @@ bool Engine::OpCodeValid(const std::string &opcode) {
 bool Engine::RestoreFromAppendableFile(EventLoop *loop, AppendableFile *history) {
   if (history) {
     appending_ = history;
-    std::vector<CommandCache> cmds = history->ReadFromScratch();
     /* TODO optimize: no need to execute redundant commands that have no effects in the end */
-    for (const auto &cmd : cmds) {
-      // std::cout << cmd;
-      HandleCommand(loop, cmd, false);
-    }
+    history->ReadFromScratch(this, loop);
     std::cout << "Database restore from disk...\n";
     return true;
   }

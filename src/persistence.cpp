@@ -59,6 +59,52 @@ void AppendableFile::FlushRightNow() {
   }
 }
 
+void AppendableFile::ReadFromScratch(Engine* engine, EventLoop* loop) {
+  std::ifstream ifs(location_, std::ios::in);
+  if (ifs.is_open()) {
+    /* read all */
+    ifs.seekg(0, std::ios::end);  /* go to end of file */
+    int64_t length = ifs.tellg();  /* report length of the whole file */
+    ifs.seekg(0, std::ios::beg);
+    Buffer buffer;
+    CommandCache cache;
+    int64_t n_cur_read = 0;
+    int64_t n_records = 0;
+    while (!ifs.eof()) {
+      char buf[RESTORE_AOF_READ_BUF_SIZE];
+      memset(buf, 0, sizeof(buf));
+      ifs.read(buf, sizeof(buf));
+      size_t n_read = ifs.gcount();
+//      std::cout << "n_read = " << n_read << std::endl;
+      n_cur_read += n_read;
+      /* split into small chunks and process one of them */
+      if (n_read == 0) {
+        break;
+      }
+      buffer.Append(buf, n_read);
+      bool err = false;
+      while (TryParseFromBuffer(buffer, cache, err)) {
+        ++n_records;
+        engine->HandleCommand(loop, cache, false);
+        cache.Clear();
+      }
+    }
+    ifs.close();
+    // 有剩余的字节没有被解析完，尝试泵不能解析出来
+    if (buffer.ReadableBytes() > 0) {
+      bool err;
+      while (TryParseFromBuffer(buffer, cache, err)) {
+        engine->HandleCommand(loop, cache, false);
+        ++n_records;
+        cache.Clear();
+      }
+    }
+    std::cout << "\nTotal " << n_records << " records loaded\n";
+    std::cout << "File length = " << length << " bytes, total_read = "
+              << n_cur_read << " bytes." << std::endl;
+  }
+}
+
 std::vector<CommandCache> AppendableFile::ReadFromScratch() {
   std::vector<CommandCache> ans;
   std::ifstream ifs(location_, std::ios::in);
