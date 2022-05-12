@@ -135,3 +135,27 @@ bool CanConvertToInt32(const std::string& str, int& ans) {
   }
   return false;
 }
+
+bool CanConvertToUInt64(const std::string& str, uint64_t& val) {
+  if (str.empty()) {
+    return false;
+  }
+  try {
+    val = std::stoull(str);
+    return true;
+  } catch (const std::exception& ec) {
+    return false;
+  }
+}
+
+bool CanConvertToDouble(const std::string& str, double& val) {
+  if (str.empty()) {
+    return false;
+  }
+  try {
+    val = std::stod(str);
+    return true;
+  } catch (const std::exception& ex) {
+    return false;
+  }
+}

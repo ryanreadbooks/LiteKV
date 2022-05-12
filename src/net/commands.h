@@ -3,6 +3,8 @@
 
 #include "../core.h"
 #include "../persistence.h"
+#include "../config.h"
+#include "../mem.h"
 #include "buffer.h"
 #include "net.h"
 
@@ -44,7 +46,7 @@ typedef std::string (*CommandHandler)(EventLoop *, KVContainer *, AppendableFile
 
 class Engine {
 public:
-  explicit Engine(KVContainer *container) : container_(container) {};
+  explicit Engine(KVContainer *container, Config *config);
 
   ~Engine() {};
 
@@ -57,15 +59,23 @@ public:
   bool RestoreFromAppendableFile(EventLoop *loop, AppendableFile *history);
 
 private:
-  KVContainer *container_;  /* not own */
-  AppendableFile *appending_; /* not own */
+  bool IfNeedKeyEviction();
+
+private:
+  KVContainer *container_ = nullptr;  /* not owned */
+  AppendableFile *appending_ = nullptr; /* not owned */
+  Config *config_ = nullptr;  /* not owned */
   static std::unordered_map<std::string, CommandHandler> sOpCommandMap;
 };
 
 /* generic command */
 std::string OverviewCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
 
+std::string NumItemsCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
 std::string PingCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+
+std::string EvictCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
 
 std::string DelCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
 

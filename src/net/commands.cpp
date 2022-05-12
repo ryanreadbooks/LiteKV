@@ -3,11 +3,14 @@
 #include <sstream>
 
 #include "commands.h"
+#include "../core.h"
 
 std::unordered_map<std::string, CommandHandler> Engine::sOpCommandMap = {
     /* generic command */
     {"overview",  OverviewCommand},/* get database overview  */
+    {"total",     NumItemsCommand},/* get database number of items  */
     {"ping",      PingCommand},   /* ping-pong test */
+    {"evict",     EvictCommand},   /* evict keys */
     {"del",       DelCommand},    /* delete given keys */
     {"exists",    ExistsCommand}, /* check if given keys exist */
     {"type",      TypeCommand},   /* query object type */
@@ -50,6 +53,7 @@ std::unordered_map<std::string, CommandHandler> Engine::sOpCommandMap = {
 };
 
 static std::unordered_map<std::string, TimeEvent *> sExpiresMap;
+static int sEvictPolicy = EVICTION_POLICY_RANDOM;
 
 #define IfWrongTypeReturn(errcode) \
   if (errcode == kWrongTypeCode) {  \
@@ -142,6 +146,11 @@ static std::string PackEmptyArrayMsg(size_t size) {
   return arr_ss.str();
 }
 
+Engine::Engine(KVContainer *container, Config *config) :
+    container_(container), config_(config) {
+  sEvictPolicy = config_->LruEnabled() ? EVICTION_POLICY_LRU : EVICTION_POLICY_RANDOM;
+}
+
 std::string Engine::HandleCommand(EventLoop *loop, const CommandCache &cmds, bool sync) {
   size_t argc = cmds.argc;
   const std::vector<std::string> &argv = cmds.argv;
@@ -158,6 +167,7 @@ std::string Engine::HandleCommand(EventLoop *loop, const CommandCache &cmds, boo
   if (!OpCodeValid(opcode)) {
     return kInvalidOpCodeMsg;
   }
+  /* TODO check if key eviction needed */
   /* sync to control whether sync commands to appending_ for persistence */
   /* sync == true: sync; flag == false: no sync */
   return sOpCommandMap[opcode](loop, container_, appending_, cmds, sync);
@@ -183,16 +193,51 @@ bool Engine::RestoreFromAppendableFile(EventLoop *loop, AppendableFile *history)
   return false;
 }
 
+bool Engine::IfNeedKeyEviction() {
+  if (config_) {
+    double ratio = config_->LruTriggerRatio();
+    size_t mem_limit = config_->MaxMemLimit();  /* in MB */
+    size_t vm_size = 0, rss_size = 0; /* in kB */
+    /* application usage approximation */
+    if (!CatSelfMemInfo(vm_size, rss_size)) {
+      /* if we can get self memory info, we assume system in critical condition,
+       * need key eviction right now.
+      */
+      return true;
+    }
+    return (size_t) ((double) mem_limit * 1024 * ratio) < rss_size;
+  }
+  return false;
+}
+
 std::string OverviewCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
-  /* usage: ping */
+  /* usage: overview */
   CheckSyntaxHelper(cmds, 0, 0, false, 'overview')
-  return PackStringMsgReply(holder->Overview());
+  return PackArrayMsg(holder->Overview());
+}
+
+std::string NumItemsCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
+  /* usage: total */
+  CheckSyntaxHelper(cmds, 0, 0, false, 'total')
+  return PackIntReply(holder->NumItems());
 }
 
 std::string PingCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
   /* usage: ping */
   CheckSyntaxHelper(cmds, 0, 0, false, 'ping')
   return kPONGMsg;
+}
+
+std::string EvictCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
+  /* usage: evict number */
+  CheckSyntaxHelper(cmds, 1, 0, false, 'evict')
+  size_t n;
+  const std::string &n_req_del = cmds.argv[1];
+  if (!CanConvertToUInt64(n_req_del, n)) {
+    return kInvalidIntegerMsg;
+  }
+  size_t ans = holder->KeyEviction(sEvictPolicy, n);
+  return PackIntReply(ans);
 }
 
 std::string DelCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
@@ -278,7 +323,7 @@ std::string ExpireCommand(EventLoop *loop, KVContainer *holder, AppendableFile *
       } else {
         /* remove expiration for key, we can set key to its current value to do it */
         int errcode = 0;
-        std::vector<std::string> recovered_cmd = holder->RecoverCommand(key, errcode);
+        std::vector<std::string> recovered_cmd = holder->RecoverCommandFromValue(key, errcode);
         if (errcode == kOkCode && !recovered_cmd.empty()) {
           CommandCache cache;
           cache.inited = true;

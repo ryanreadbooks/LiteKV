@@ -17,7 +17,8 @@ set(SRC
     src/net/buffer.cpp
     src/net/commands.cpp
     src/net/time_event.cpp
-    src/net/protocol.cpp)
+    src/net/protocol.cpp
+    )
 
 SET(LIBS
     pthread)

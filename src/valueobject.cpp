@@ -5,7 +5,7 @@ ValueObject* ConstructIntObj(int64_t intval) {
   if (obj == nullptr)
     return nullptr;
   obj->type = OBJECT_INT;
-  obj->cas = 0;
+  obj->lv_time = GetCurrentMs();
   /* cast int64_t(8 bytes) to void* pointer(8 bytes) */
   obj->ptr = reinterpret_cast<void *>(intval);
   return obj;
@@ -25,7 +25,7 @@ ValueObject* ConstructStrObj(const std::string& strval) {
   if (obj == nullptr)
     return nullptr;
   obj->type = OBJECT_STRING;
-  obj->cas = 0;
+  obj->lv_time = GetCurrentMs();
   /* use dynamic string */
   DynamicString *p_str = new (std::nothrow) DynamicString(strval);
   if (p_str == nullptr) return nullptr;
@@ -50,7 +50,7 @@ ValueObject *ConstructDListObj() {
     return nullptr;
   }
   obj->type = OBJECT_LIST;
-  obj->cas = 0;
+  obj->lv_time = GetCurrentMs();
   /* construct dlist object */
   DList *p_list = new (std::nothrow) DList;
   if (p_list == nullptr) return nullptr;
@@ -73,7 +73,7 @@ ValueObject *ConstructHashObj() {
     return nullptr;
   }
   obj->type = OBJECT_HASH;
-  obj->cas = 0;
+  obj->lv_time = GetCurrentMs();
   Dict* p_dict = new (std::nothrow) Dict;
   if (p_dict == nullptr) return nullptr;
   obj->ptr = p_dict;

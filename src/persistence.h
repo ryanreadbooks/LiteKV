@@ -32,6 +32,8 @@ public:
 
   std::vector<CommandCache> ReadFromScratch();
 
+  void RemoveRedundancy();
+
 private:
 
   void Flush();

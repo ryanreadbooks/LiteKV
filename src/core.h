@@ -11,6 +11,9 @@
 #include "dict.h"
 #include "valueobject.h"
 
+static const int EVICTION_POLICY_RANDOM = 0;
+static const int EVICTION_POLICY_LRU = 1;
+
 static const int kBucketSize = 512;
 
 using HashMap = std::unordered_map<Key, ValueObjectPtr, KeyHasher, KeyEqual>;
@@ -43,7 +46,9 @@ public:
 
 public:
   /* container overview */
-  std::string Overview() const;
+  std::vector<DynamicString> Overview() const;
+
+  size_t KeyEviction(int policy, size_t n);
 
   int QueryObjectType(const Key &key);
 
@@ -61,7 +66,7 @@ public:
 
   size_t NumItems() const;
 
-  std::vector<std::string> RecoverCommand(const std::string& key, int &errcode);
+  std::vector<std::string> RecoverCommandFromValue(const std::string& key, int &errcode);
 
   /**
    * @brief set integer
@@ -295,9 +300,14 @@ private:
 
   DynamicString ListPopAux(const Key &key, bool leftpop, int &errcode);
 
+  size_t KeyEvictionRandom(size_t num);
+
+  size_t KeyEvictionLru(size_t num);
+
 private:
   mutable std::mutex mtx_;
   std::array<Bucket, kBucketSize> bucket_;
+  std::vector<const Key*> keys_pool_;
 };
 
 #endif  // __CORE_H__

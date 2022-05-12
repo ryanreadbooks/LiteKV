@@ -7,6 +7,7 @@
 #include "str.h"
 #include "dlist.h"
 #include "dict.h"
+#include "net/time_event.h"
 
 struct ValueObject;
 
@@ -27,8 +28,8 @@ struct ValueObject {
   /* object type */
   unsigned char type;
 
-  /* CAS */
-  int cas; /* reserved, not used */
+  /* last visited time for lru key eviction */
+  uint64_t lv_time;
 
   /* pointer to real content */
   void *ptr;
@@ -36,7 +37,7 @@ struct ValueObject {
   ValueObject() {}
 
   ValueObject(unsigned char type, void* ptr) :
-    type(type), cas(0), ptr(ptr) {}
+    type(type), lv_time(GetCurrentMs()), ptr(ptr) {}
 
   void FreePtr() {
     if (type != OBJECT_INT && ptr) { /* no need to free int object */

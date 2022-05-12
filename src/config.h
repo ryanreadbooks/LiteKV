@@ -21,6 +21,12 @@ public:
 
   inline int GetDumpCacheSize() const { return dump_cachesize_; }
 
+  inline bool LruEnabled() const { return lru_enabled_; }
+
+  inline double LruTriggerRatio() const { return lru_trigger_ratio_; }
+
+  inline size_t MaxMemLimit() const { return max_memory_limit_; }
+
 private:
   void Init(std::unordered_map<std::string, std::string>& configs);
 
@@ -31,6 +37,9 @@ private:
   int port_ = 9527;
   std::string dumpfile_ = "dump.aof";
   int dump_cachesize_ = 1024;
+  volatile bool lru_enabled_ = false;
+  double lru_trigger_ratio_ = 0.9f;
+  size_t max_memory_limit_ = 2048; /* unit: MB */
 };
 
 #endif // __CONFIG_H__

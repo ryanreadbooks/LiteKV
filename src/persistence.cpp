@@ -173,3 +173,16 @@ void AppendableFile::Switch() {
   std::lock_guard<std::mutex> lck(mtx_);
   std::swap(cur_caches_, backup_caches_);
 }
+
+void AppendableFile::RemoveRedundancy() {
+  /* refactor dumpfile, remove those redundant commands,
+   * such as set one key, and then del this key, in this case, we do not need to set this key at all;
+   * or if we set one key to value1, and the set this key to another value2, in this case, we can just set key to value2 directly.
+  */
+  /* load dump file and iterate the whole file to process */
+  std::vector<CommandCache> all_cmds = ReadFromScratch();
+  std::cout << "Starts analysing and removing redundancy...\n";
+  /* TODO implement redundancy */
+  std::unordered_map<std::string, CommandCache*> caches;
+
+}

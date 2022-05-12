@@ -1,6 +1,6 @@
 #include <iostream>
 #include "../src/core.h"
-#include "../src/profile.h"
+#include "../src/mem.h"
 
 using namespace std;
 
@@ -141,7 +141,7 @@ int main() {
   cout << "--------------- Test multiple keys values operation end ---------------\n";
 
   cout << "Memory status: ";
-  cout << ProcessVmSize() << endl;
+  cout << ProcessVmSizeAsString() << endl;
   cout << "==================== Test container for hashtable End ====================\n";
 
   return 0;

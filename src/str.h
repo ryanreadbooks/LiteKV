@@ -297,8 +297,12 @@ private:
   char *buf_ = nullptr;
 };
 
-bool CanConvertToInt64(const std::string &str, int64_t &ok);
+bool CanConvertToInt64(const std::string &str, int64_t &val);
 
-bool CanConvertToInt32(const std::string &str, int &ok);
+bool CanConvertToInt32(const std::string &str, int &val);
+
+bool CanConvertToUInt64(const std::string& str, uint64_t& val);
+
+bool CanConvertToDouble(const std::string& str, double& val);
 
 #endif  // __STR_H__

@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
 
   EventLoop loop;
   KVContainer container;
-  Engine engine(&container);
+  Engine engine(&container, &configs);
   std::string location = configs.GetDumpFilename();
   size_t cache_size = configs.GetDumpCacheSize();
   history = new AppendableFile(location, cache_size);

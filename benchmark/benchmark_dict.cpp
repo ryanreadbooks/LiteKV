@@ -1,7 +1,7 @@
 #include <iostream>
 #include <chrono>
 #include "../src/core.h"
-#include "../src/profile.h"
+#include "../src/mem.h"
 
 #ifdef TCMALLOC_FOUND
 
@@ -54,10 +54,12 @@ int main() {
   cout << "Random get " << kNum * kEntry << " elements elapsed: " << duration.count() << " s" << endl;
 
   cout << "Container overview: \n";
-  cout << engine.Overview() << endl;
+  for (auto& s: engine.Overview()) {
+    cout << s << endl;
+  }
 
   cout << "Memory status: ";
-  cout << ProcessVmSize() << endl;
+  cout << ProcessVmSizeAsString() << endl;
 #ifdef TCMALLOC_FOUND
   char buf[8192];
   MallocExtension::instance()->GetStats(buf, sizeof buf);

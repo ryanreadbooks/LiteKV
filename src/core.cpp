@@ -1,5 +1,17 @@
 #include <sstream>
+#include <random>
+#include <algorithm>
 #include "core.h"
+
+static std::mt19937_64 sRandEngine(std::time(nullptr));
+
+static int RandIntValue(int from, int to) {
+  return std::uniform_int_distribution<int>(from, to)(sRandEngine);
+}
+
+static double RandDoubleValue(double from, double to) {
+  return std::uniform_real_distribution<double>(from ,to)(sRandEngine);
+}
 
 /* Get bucket according to key and lock the bucket */
 #define GetBucketAndLock(key) \
@@ -35,7 +47,9 @@
 
 #define RetrievePtr(key, Type) ((Type *) (bucket.content[key]->ptr))
 
-std::string KVContainer::Overview() const {
+#define UpdateLastVisitTime(key) bucket.content[key]->lv_time = GetCurrentMs();
+
+std::vector<DynamicString> KVContainer::Overview() const {
   /* make statistic */
   LockGuard lck(mtx_);
   size_t n_int = 0, n_str = 0, n_list = 0, n_dict = 0;
@@ -62,7 +76,55 @@ std::string KVContainer::Overview() const {
      << "\tNumber of string: " << n_str
      << "\tNumber of list: " << n_list << ", total elements: " << n_list_elem
      << "\tNumber of hash: " << n_dict << ", total entries: " << n_dict_entry;
-  return ss.str();
+  std::vector<DynamicString> overview;
+  overview.emplace_back("Number of int:");
+  overview.emplace_back(std::to_string(n_int));
+  overview.emplace_back("Number of string:");
+  overview.emplace_back(std::to_string(n_str));
+  overview.emplace_back("Number of list:");
+  overview.emplace_back(std::to_string(n_list));
+  overview.emplace_back("Number of elements in list:");
+  overview.emplace_back(std::to_string(n_list_elem));
+  overview.emplace_back("Number of hash:");
+  overview.emplace_back(std::to_string(n_dict));
+  overview.emplace_back("Number of elements in hash:");
+  overview.emplace_back(std::to_string(n_dict_entry));
+  return overview;
+}
+
+size_t KVContainer::KeyEviction(int policy, size_t n) {
+  if (policy == EVICTION_POLICY_LRU) {
+    return KeyEvictionLru(n);
+  } else if (policy == EVICTION_POLICY_RANDOM) {
+    return KeyEvictionRandom(n);
+  }
+  return 0;
+}
+
+size_t KVContainer::KeyEvictionRandom(size_t num) {
+  /* Simple eviction policy: random eviction
+   * random select num keys and discard them
+  */
+  if (keys_pool_.empty()) {
+    return 0;
+  }
+  num = std::min(keys_pool_.size(), num);
+  size_t n_deleted = 0;
+  for (size_t i = 0; i < num; ++i) {
+    size_t idx = RandIntValue(0, (int)keys_pool_.size() - 1);
+    const Key* key = keys_pool_[idx];
+    if (Delete(*key)) {
+      ++n_deleted;
+    }
+  }
+  return n_deleted;
+}
+
+size_t KVContainer::KeyEvictionLru(size_t num) {
+  /* TODO lru eviction  */
+  /* LRU eviction policy: discard num keys according to approximate LRU */
+
+  return 0;
 }
 
 int KVContainer::QueryObjectType(const Key &key) {
@@ -97,7 +159,7 @@ size_t KVContainer::NumItems() const {
   return cnt;
 }
 
-std::vector<std::string> KVContainer::RecoverCommand(const std::string &key, int &errcode) {
+std::vector<std::string> KVContainer::RecoverCommandFromValue(const std::string &key, int &errcode) {
   /* given an existing key, recover a command to set the key and value */
   Key k(key);
   GetBucketAndLock(k);
@@ -141,7 +203,9 @@ bool KVContainer::SetInt(const Key &key, int64_t intval) {
     if (!iptr) {
       return false;
     }
+    /* put new value into bucket */
     bucket.content[key] = iptr;
+    keys_pool_.emplace_back(&bucket.content.find(key)->first);
   } else {
     // check existing key is type int
     if (bucket.content[key]->type != OBJECT_INT) {
@@ -151,6 +215,7 @@ bool KVContainer::SetInt(const Key &key, int64_t intval) {
     // replace old value for int, and reset exp_time if needed
     bucket.content[key]->type = OBJECT_INT;
     bucket.content[key]->ptr = reinterpret_cast<void *>(intval);
+    UpdateLastVisitTime(key)
   }
   return true;
 }
@@ -167,11 +232,13 @@ int64_t KVContainer::IncrIntBy(const Key &key, int64_t increment, int &errcode) 
       return 0;
     }
     bucket.content[key] = iptr;
+    keys_pool_.emplace_back(&bucket.content.find(key)->first);
     errcode = kOkCode;
     return iptr->ToInt64();
   } else {
     /* add increment on existing value */
     IfKeyNotTypeThenReturn(key, OBJECT_INT, 0)
+    UpdateLastVisitTime(key)
     /* check overflow */
     int64_t val = bucket.content[key]->ToInt64();
     if (val > INT64_MAX - increment) {
@@ -196,11 +263,13 @@ int64_t KVContainer::DecrIntBy(const Key &key, int64_t decrement, int &errcode) 
       return 0;
     }
     bucket.content[key] = iptr;
+    keys_pool_.emplace_back(&bucket.content.find(key)->first);
     errcode = kOkCode;
     return iptr->ToInt64();
   } else {
     /* add decrement on existing value */
     IfKeyNotTypeThenReturn(key, OBJECT_INT, 0)
+    UpdateLastVisitTime(key)
     int64_t val = bucket.content[key]->ToInt64();
     if (val < INT64_MIN + decrement) {
       errcode = kOverflowCode;
@@ -224,6 +293,7 @@ bool KVContainer::SetString(const Key &key, const std::string &value) {
       return false;
     }
     bucket.content[key] = sptr;
+    keys_pool_.emplace_back(&bucket.content.find(key)->first);
   } else {
     // check existing key is type string
     auto type = bucket.content[key]->type;
@@ -241,6 +311,7 @@ bool KVContainer::SetString(const Key &key, const std::string &value) {
       }
       bucket.content[key]->ptr = (void *) dsptr;
     }
+    UpdateLastVisitTime(key)
     bucket.content[key]->type = OBJECT_STRING;
   }
   return true;
@@ -251,10 +322,12 @@ size_t KVContainer::StrLen(const Key &key, int &errcode) {
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, 0)
   if (bucket.content[key]->type == OBJECT_INT) {
+    UpdateLastVisitTime(key)
     errcode = kOkCode;
     int64_t num = reinterpret_cast<int64_t>(bucket.content[key]->ptr);
     return std::to_string(num).size();
   } else if (bucket.content[key]->type == OBJECT_STRING) {
+    UpdateLastVisitTime(key)
     errcode = kOkCode;
     return RetrievePtr(key, DynamicString)->Length();
   }
@@ -267,6 +340,7 @@ ValueObjectPtr KVContainer::Get(const Key &key, int &errcode) {
   IfKeyNotFoundThenReturn(key, nullptr)
   // invalid type for get operation
   IfKeyNeitherTypeThenReturn(key, OBJECT_INT, OBJECT_STRING, nullptr)
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   return bucket.content[key];
 }
@@ -277,7 +351,14 @@ ValueObjectPtr KVContainer::Get(const std::string &key, int &errcode) {
 
 bool KVContainer::Delete(const Key &key) {
   GetBucketAndLock(key);
-  return bucket.content.erase(key) == 1;
+  auto it = bucket.content.find(key);
+  if (it == bucket.content.end()) {
+    return false;
+  }
+  const Key* p = &it->first;
+  keys_pool_.erase(std::remove(keys_pool_.begin(), keys_pool_.end(), p), keys_pool_.end());
+  bucket.content.erase(it);
+  return true;
 }
 
 int KVContainer::Delete(const std::vector<std::string> &keys) {
@@ -293,13 +374,13 @@ int KVContainer::Delete(const std::vector<std::string> &keys) {
 size_t KVContainer::Append(const Key &key, const std::string &val, int &errcode) {
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, false)
-//  IfKeyNeitherTypeThenReturn(key, OBJECT_INT, OBJECT_STRING, false)
   if (bucket.content[key]->type == OBJECT_STRING) {
     ((DynamicString *) bucket.content[key]->ptr)->Append(val);
   } else if (bucket.content[key]->type == OBJECT_INT) {
     /* append operation will make int turn to string */
     int64_t num = bucket.content[key]->ToInt64();
     DynamicString *dsptr = new(std::nothrow) DynamicString(std::to_string(num));
+    if (dsptr == nullptr) return 0;
     dsptr->Append(val);
     /* change value object */
     bucket.content[key]->ptr = dsptr;
@@ -308,6 +389,7 @@ size_t KVContainer::Append(const Key &key, const std::string &val, int &errcode)
     errcode = kWrongTypeCode;
     return 0;
   }
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   return RetrievePtr(key, DynamicString)->Length();
 }
@@ -334,7 +416,8 @@ size_t KVContainer::RightPush(const std::string &key, const std::vector<std::str
     /* create new dlist object */   \
     ValueObjectPtr obj = ConstructDListObjPtr();  \
     bucket.content[key] = obj;  \
-    } else {  \
+    keys_pool_.emplace_back(&bucket.content.find(key)->first);  \
+  } else {  \
     /* check key validity */  \
     IfKeyNotTypeThenReturn(key, OBJECT_LIST, false) \
   }
@@ -349,6 +432,7 @@ size_t KVContainer::RightPush(const std::string &key, const std::vector<std::str
 bool KVContainer::ListPushAux(const Key &key, const std::string &val, bool leftpush, int &errcode) {
   ListPushAuxCommon(key)
   ListPushAuxCommon2(key, val)
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   return true;
 }
@@ -358,6 +442,7 @@ size_t KVContainer::ListPushAux(const Key &key, const std::vector<std::string> &
   for (const auto &val : values) {
     ListPushAuxCommon2(key, val)
   }
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   return ((DList *) (bucket.content[key]->ptr))->Length();
 }
@@ -378,6 +463,7 @@ DynamicString KVContainer::ListPopAux(const Key &key, bool leftpop, int &errcode
   IfKeyNotFoundThenReturn(key, DynamicString())
   /* key exists */
   IfKeyNotTypeThenReturn(key, OBJECT_LIST, DynamicString())
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   if (leftpop) {
     return RetrievePtr(key, DList)->PopLeft();
@@ -405,6 +491,7 @@ std::vector<DynamicString> KVContainer::ListRange(const Key &key, int begin, int
   } else if ((begin > 0 && end < 0) || (begin < 0 && end < 0)) {
     return {};
   }
+  UpdateLastVisitTime(key)
   return RetrievePtr(key, DList)->RangeAsDynaStringVector(begin, end);
 }
 
@@ -412,6 +499,7 @@ size_t KVContainer::ListLen(const Key &key, int &errcode) {
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, 0)
   IfKeyNotTypeThenReturn(key, OBJECT_LIST, 0)
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   return RetrievePtr(key, DList)->Length();
 }
@@ -431,6 +519,7 @@ DynamicString KVContainer::ListItemAtIndex(const Key &key, int index, int &errco
     return DynamicString();
   }
   try {
+    UpdateLastVisitTime(key)
     errcode = kOkCode;
     return DynamicString(list->operator[](index));
   } catch (const std::out_of_range &ex) {
@@ -455,6 +544,7 @@ bool KVContainer::ListSetItemAtIndex(const Key &key, int index, const std::strin
   }
   try {
     list->operator[](index).Reset(val);
+    UpdateLastVisitTime(key)
     errcode = kOkCode;
     return true;
   } catch (const std::out_of_range &ex) {
@@ -476,11 +566,13 @@ bool KVContainer::HashSetKV(const Key &key, const DictKey &field, const DictVal 
     }
     ((Dict *) (obj->ptr))->Update(field, value);
     bucket.content[key] = obj;
+    keys_pool_.emplace_back(&bucket.content.find(key)->first);
   } else { /* found key */
     IfKeyNotTypeThenReturn(key, OBJECT_HASH, false);
     /* found hash and then update */
     RetrievePtr(key, Dict)->Update(field, value);
   }
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   return true;
 }
@@ -502,6 +594,7 @@ int KVContainer::HashSetKV(const Key &key, const std::vector<std::string> &field
     }
     /* put field-value into key */
     bucket.content[key] = obj;
+    keys_pool_.emplace_back(&bucket.content.find(key)->first);
   } else { /* found existing key */
     IfKeyNotTypeThenReturn(key, OBJECT_HASH, 0)
   }
@@ -511,6 +604,7 @@ int KVContainer::HashSetKV(const Key &key, const std::vector<std::string> &field
       ++count;
     }
   }
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   return count;
 }
@@ -519,6 +613,7 @@ DictVal KVContainer::HashGetValue(const Key &key, const DictKey &field, int &err
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, DictVal())
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, DictVal())
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   try {
     return RetrievePtr(key, Dict)->At(field);
@@ -541,6 +636,7 @@ std::vector<DictVal> KVContainer::HashGetValue(const Key &key, const std::vector
       values.emplace_back(DictVal());
     }
   }
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   return values;
 }
@@ -549,6 +645,7 @@ int KVContainer::HashDelField(const Key &key, const DictKey &field, int &errcode
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, false)
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, false)
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   return RetrievePtr(key, Dict)->Erase(field);
 }
@@ -563,6 +660,7 @@ int KVContainer::HashDelField(const Key &key, const std::vector<std::string> &fi
       ++n_erased;
     }
   }
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   return n_erased;
 }
@@ -571,6 +669,7 @@ bool KVContainer::HashExistField(const Key &key, const DictKey &field, int &errc
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, false)
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, false);
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   return RetrievePtr(key, Dict)->CheckExists(field);
 }
@@ -579,7 +678,6 @@ std::vector<DynamicString> KVContainer::HashGetAllEntries(const Key &key, int &e
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, {})
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, {});
-  errcode = kOkCode;
   std::vector<HTEntry *> entries = RetrievePtr(key, Dict)->AllEntries();
   std::vector<DynamicString> entries_str;
   entries_str.reserve(entries.size() * 2);
@@ -587,6 +685,8 @@ std::vector<DynamicString> KVContainer::HashGetAllEntries(const Key &key, int &e
     entries_str.emplace_back(*p_entry->key);
     entries_str.emplace_back(*p_entry->value);
   }
+  UpdateLastVisitTime(key)
+  errcode = kOkCode;
   return entries_str;
 }
 
@@ -594,6 +694,7 @@ std::vector<DictKey> KVContainer::HashGetAllFields(const Key &key, int &errcode)
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, {})
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, {});
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   return RetrievePtr(key, Dict)->AllKeys();
 }
@@ -602,6 +703,7 @@ std::vector<DictVal> KVContainer::HashGetAllValues(const Key &key, int &errcode)
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, {})
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, {});
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   return RetrievePtr(key, Dict)->AllValues();
 }
@@ -610,6 +712,7 @@ size_t KVContainer::HashLen(const Key &key, int &errcode) {
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, 0)
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, 0);
+  UpdateLastVisitTime(key)
   errcode = kOkCode;
   return RetrievePtr(key, Dict)->Count();
 }
