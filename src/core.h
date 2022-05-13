@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <unordered_map>
+#include <queue>
 #include <vector>
 #include <fstream>
 #include <mutex>
@@ -15,6 +16,7 @@ static const int EVICTION_POLICY_RANDOM = 0;
 static const int EVICTION_POLICY_LRU = 1;
 
 static const int kBucketSize = 512;
+static const int kNumEvictCandidates = 16;
 
 using HashMap = std::unordered_map<Key, ValueObjectPtr, KeyHasher, KeyEqual>;
 using LockGuard = std::unique_lock<std::mutex>;
@@ -48,7 +50,7 @@ public:
   /* container overview */
   std::vector<DynamicString> Overview() const;
 
-  size_t KeyEviction(int policy, size_t n);
+  std::vector<std::string> KeyEviction(int policy, size_t n);
 
   int QueryObjectType(const Key &key);
 
@@ -300,14 +302,16 @@ private:
 
   DynamicString ListPopAux(const Key &key, bool leftpop, int &errcode);
 
-  size_t KeyEvictionRandom(size_t num);
+  std::vector<std::string> KeyEvictionRandom(size_t num);
 
-  size_t KeyEvictionLru(size_t num);
+  std::vector<std::string> KeyEvictionLru(size_t num);
+
+  void KeyEvictionLruHelper(std::vector<std::string>& deleted_keys);
 
 private:
   mutable std::mutex mtx_;
   std::array<Bucket, kBucketSize> bucket_;
-  std::vector<const Key*> keys_pool_;
+  std::vector<Key> keys_pool_;
 };
 
 #endif  // __CORE_H__

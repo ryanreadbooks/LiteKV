@@ -1,6 +1,9 @@
 #ifndef __ENGINE_H__
 #define __ENGINE_H__
 
+#include <thread>
+#include <atomic>
+
 #include "../core.h"
 #include "../persistence.h"
 #include "../config.h"
@@ -48,7 +51,7 @@ class Engine {
 public:
   explicit Engine(KVContainer *container, Config *config);
 
-  ~Engine() {};
+  ~Engine();
 
   std::string HandleCommand(EventLoop *loop, const CommandCache &cmds, bool flag = true);
 
@@ -61,11 +64,17 @@ public:
 private:
   bool IfNeedKeyEviction();
 
+  void UpdateMemInfo();
+
 private:
   KVContainer *container_ = nullptr;  /* not owned */
   AppendableFile *appending_ = nullptr; /* not owned */
   Config *config_ = nullptr;  /* not owned */
   static std::unordered_map<std::string, CommandHandler> sOpCommandMap;
+  size_t cur_vm_size_;
+  size_t cur_rss_size_;
+  std::thread worker_;
+  std::atomic<bool> stopped_;
 };
 
 /* generic command */

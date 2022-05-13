@@ -130,8 +130,6 @@ static std::string PackArrayMsg(const std::vector<DynamicString> &array) {
   size_t len = array.size();
   arr_ss << kArrayPrefix << len << kCRLF;
   for (const auto &value : array) {
-//    arr_ss << '$' << value.Length() << kCRLF
-//           << value << kCRLF;
     arr_ss << PackStringValueReply(value);
   }
   return arr_ss.str();
@@ -149,6 +147,13 @@ static std::string PackEmptyArrayMsg(size_t size) {
 Engine::Engine(KVContainer *container, Config *config) :
     container_(container), config_(config) {
   sEvictPolicy = config_->LruEnabled() ? EVICTION_POLICY_LRU : EVICTION_POLICY_RANDOM;
+  std::thread bg_worker(std::bind(&Engine::UpdateMemInfo, this));
+  worker_.swap(bg_worker);
+}
+
+Engine::~Engine() {
+  stopped_.store(true);
+  worker_.join();
 }
 
 std::string Engine::HandleCommand(EventLoop *loop, const CommandCache &cmds, bool sync) {
@@ -167,7 +172,23 @@ std::string Engine::HandleCommand(EventLoop *loop, const CommandCache &cmds, boo
   if (!OpCodeValid(opcode)) {
     return kInvalidOpCodeMsg;
   }
-  /* TODO check if key eviction needed */
+  /* TODO slow if too many to evict */
+  CommandCache cmd;
+  if (sync) {
+    appending_->SetAutoFlush(true);
+  } else {
+    appending_->SetAutoFlush(false);
+  }
+  /* lazy eviction, once at a time to avoid massive time consumption */
+  if (IfNeedKeyEviction()) {
+    auto ans = container_->KeyEviction(sEvictPolicy, 16);
+    ans.insert(ans.begin(), "del");
+    cmd.argc = ans.size();
+    cmd.argv = ans;
+    cmd.inited = true;
+    appending_->Append(cmd);
+    cmd.Clear();
+  }
   /* sync to control whether sync commands to appending_ for persistence */
   /* sync == true: sync; flag == false: no sync */
   return sOpCommandMap[opcode](loop, container_, appending_, cmds, sync);
@@ -185,7 +206,6 @@ bool Engine::OpCodeValid(const std::string &opcode) {
 bool Engine::RestoreFromAppendableFile(EventLoop *loop, AppendableFile *history) {
   if (history) {
     appending_ = history;
-    /* TODO optimize: no need to execute redundant commands that have no effects in the end */
     history->ReadFromScratch(this, loop);
     std::cout << "Database restore from disk...\n";
     return true;
@@ -197,17 +217,16 @@ bool Engine::IfNeedKeyEviction() {
   if (config_) {
     double ratio = config_->LruTriggerRatio();
     size_t mem_limit = config_->MaxMemLimit();  /* in MB */
-    size_t vm_size = 0, rss_size = 0; /* in kB */
-    /* application usage approximation */
-    if (!CatSelfMemInfo(vm_size, rss_size)) {
-      /* if we can get self memory info, we assume system in critical condition,
-       * need key eviction right now.
-      */
-      return true;
-    }
-    return (size_t) ((double) mem_limit * 1024 * ratio) < rss_size;
+    return (size_t) ((double) mem_limit * 1024 * ratio) < cur_rss_size_;
   }
   return false;
+}
+
+void Engine::UpdateMemInfo() {
+  while (!stopped_) {
+    CatSelfMemInfo(cur_vm_size_, cur_rss_size_);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
 }
 
 std::string OverviewCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
@@ -236,8 +255,16 @@ std::string EvictCommand(EventLoop *loop, KVContainer *holder, AppendableFile *a
   if (!CanConvertToUInt64(n_req_del, n)) {
     return kInvalidIntegerMsg;
   }
-  size_t ans = holder->KeyEviction(sEvictPolicy, n);
-  return PackIntReply(ans);
+  std::vector<std::string> ans = holder->KeyEviction(sEvictPolicy, n);
+  if (sync) {
+    CommandCache cmd;
+    ans.insert(ans.begin(), "del");
+    cmd.argc = ans.size();
+    cmd.argv = ans;
+    cmd.inited = true;
+    appendable->Append(cmd);
+  }
+  return PackIntReply(ans.size() - 1);
 }
 
 std::string DelCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {

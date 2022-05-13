@@ -1,6 +1,8 @@
 #include <sstream>
 #include <random>
 #include <algorithm>
+#include <gperftools/malloc_extension.h>
+
 #include "core.h"
 
 static std::mt19937_64 sRandEngine(std::time(nullptr));
@@ -10,7 +12,7 @@ static int RandIntValue(int from, int to) {
 }
 
 static double RandDoubleValue(double from, double to) {
-  return std::uniform_real_distribution<double>(from ,to)(sRandEngine);
+  return std::uniform_real_distribution<double>(from, to)(sRandEngine);
 }
 
 /* Get bucket according to key and lock the bucket */
@@ -92,40 +94,79 @@ std::vector<DynamicString> KVContainer::Overview() const {
   return overview;
 }
 
-size_t KVContainer::KeyEviction(int policy, size_t n) {
+std::vector<std::string> KVContainer::KeyEviction(int policy, size_t n) {
+  if (keys_pool_.empty()) {
+    return {};
+  }
   if (policy == EVICTION_POLICY_LRU) {
+    std::cout << "EVICTION_POLICY_LRU\n";
+#ifdef TCMALLOC_FOUND
+    MallocExtension::instance()->ReleaseFreeMemory();
+#endif
     return KeyEvictionLru(n);
   } else if (policy == EVICTION_POLICY_RANDOM) {
+#ifdef TCMALLOC_FOUND
+    MallocExtension::instance()->ReleaseFreeMemory();
+#endif
     return KeyEvictionRandom(n);
   }
-  return 0;
+  return {};
 }
 
-size_t KVContainer::KeyEvictionRandom(size_t num) {
+#define FetchLvTimeFromKeyPointer(key)  \
+  GetBucket(key).content[key]->lv_time
+
+std::vector<std::string> KVContainer::KeyEvictionRandom(size_t num) {
   /* Simple eviction policy: random eviction
    * random select num keys and discard them
   */
-  if (keys_pool_.empty()) {
-    return 0;
-  }
   num = std::min(keys_pool_.size(), num);
-  size_t n_deleted = 0;
+  std::vector<std::string> deleted_keys;
   for (size_t i = 0; i < num; ++i) {
-    size_t idx = RandIntValue(0, (int)keys_pool_.size() - 1);
-    const Key* key = keys_pool_[idx];
-    if (Delete(*key)) {
-      ++n_deleted;
+    size_t idx = RandIntValue(0, (int) keys_pool_.size() - 1);
+    const Key& key = keys_pool_[idx];
+    if (Delete(key)) {
+      deleted_keys.emplace_back(key.ToStdString());
     }
   }
-  return n_deleted;
+  return deleted_keys;
 }
 
-size_t KVContainer::KeyEvictionLru(size_t num) {
+std::vector<std::string> KVContainer::KeyEvictionLru(size_t num) {
   /* TODO lru eviction  */
-  /* LRU eviction policy: discard num keys according to approximate LRU */
-
-  return 0;
+  /* LRU eviction policy: discard num keys according to approximate LRU
+  */
+  size_t n_deleted = 0;
+  std::vector<std::string> deleted_keys;
+  while (!keys_pool_.empty() && n_deleted < num) {
+    KeyEvictionLruHelper(deleted_keys);
+  }
+  return deleted_keys;
 }
+
+void KVContainer::KeyEvictionLruHelper(std::vector<std::string>& deleted_keys) {
+  /* Random select 10 keys as one group, and evict the smallest lv_time in group,
+  * repeat the process till n_deleted reaches num
+  */
+  if (keys_pool_.empty()) return;
+  std::vector<Key> candidates;
+  for (int i = 0; i < 10; ++i) {
+    size_t idx = RandIntValue(0, (int) keys_pool_.size() - 1);
+    if (std::find(candidates.begin(), candidates.end(), keys_pool_[idx]) == candidates.end()) {
+      candidates.emplace_back(keys_pool_[idx]);
+    }
+  }
+  auto min_it = std::min_element(candidates.begin(),
+                                 candidates.end(),
+                                 [this](const Key &a, const Key &b) -> bool {
+                                   return FetchLvTimeFromKeyPointer(a) < FetchLvTimeFromKeyPointer(b);
+                                 });
+  if (min_it != candidates.end() && Delete(*min_it)) {
+    deleted_keys.emplace_back(min_it->ToStdString());
+  }
+}
+
+#undef FetchLvTimeFromKeyPointer
 
 int KVContainer::QueryObjectType(const Key &key) {
   GetBucketAndLock(key);
@@ -182,7 +223,7 @@ std::vector<std::string> KVContainer::RecoverCommandFromValue(const std::string 
     std::vector<std::string> entries_str;
     entries_str.reserve(entries.size() * 2);
     for (const auto &p_entry : entries) {
-      const HTEntry& entry = *p_entry;
+      const HTEntry &entry = *p_entry;
       entries_str.emplace_back(entry.key->ToStdString());
       entries_str.emplace_back(entry.value->ToStdString());
     }
@@ -205,7 +246,7 @@ bool KVContainer::SetInt(const Key &key, int64_t intval) {
     }
     /* put new value into bucket */
     bucket.content[key] = iptr;
-    keys_pool_.emplace_back(&bucket.content.find(key)->first);
+    keys_pool_.emplace_back(bucket.content.find(key)->first);
   } else {
     // check existing key is type int
     if (bucket.content[key]->type != OBJECT_INT) {
@@ -232,7 +273,7 @@ int64_t KVContainer::IncrIntBy(const Key &key, int64_t increment, int &errcode) 
       return 0;
     }
     bucket.content[key] = iptr;
-    keys_pool_.emplace_back(&bucket.content.find(key)->first);
+    keys_pool_.emplace_back(bucket.content.find(key)->first);
     errcode = kOkCode;
     return iptr->ToInt64();
   } else {
@@ -263,7 +304,7 @@ int64_t KVContainer::DecrIntBy(const Key &key, int64_t decrement, int &errcode) 
       return 0;
     }
     bucket.content[key] = iptr;
-    keys_pool_.emplace_back(&bucket.content.find(key)->first);
+    keys_pool_.emplace_back(bucket.content.find(key)->first);
     errcode = kOkCode;
     return iptr->ToInt64();
   } else {
@@ -293,7 +334,7 @@ bool KVContainer::SetString(const Key &key, const std::string &value) {
       return false;
     }
     bucket.content[key] = sptr;
-    keys_pool_.emplace_back(&bucket.content.find(key)->first);
+    keys_pool_.emplace_back(bucket.content.find(key)->first);
   } else {
     // check existing key is type string
     auto type = bucket.content[key]->type;
@@ -355,8 +396,10 @@ bool KVContainer::Delete(const Key &key) {
   if (it == bucket.content.end()) {
     return false;
   }
-  const Key* p = &it->first;
-  keys_pool_.erase(std::remove(keys_pool_.begin(), keys_pool_.end(), p), keys_pool_.end());
+  const Key &p = it->first;
+  /* FIXME slow: O(n) time */
+  keys_pool_.erase(std::remove(keys_pool_.begin(), keys_pool_.end(), p),
+                   keys_pool_.end());
   bucket.content.erase(it);
   return true;
 }
@@ -416,7 +459,7 @@ size_t KVContainer::RightPush(const std::string &key, const std::vector<std::str
     /* create new dlist object */   \
     ValueObjectPtr obj = ConstructDListObjPtr();  \
     bucket.content[key] = obj;  \
-    keys_pool_.emplace_back(&bucket.content.find(key)->first);  \
+    keys_pool_.emplace_back(bucket.content.find(key)->first);  \
   } else {  \
     /* check key validity */  \
     IfKeyNotTypeThenReturn(key, OBJECT_LIST, false) \
@@ -566,7 +609,7 @@ bool KVContainer::HashSetKV(const Key &key, const DictKey &field, const DictVal 
     }
     ((Dict *) (obj->ptr))->Update(field, value);
     bucket.content[key] = obj;
-    keys_pool_.emplace_back(&bucket.content.find(key)->first);
+    keys_pool_.emplace_back(bucket.content.find(key)->first);
   } else { /* found key */
     IfKeyNotTypeThenReturn(key, OBJECT_HASH, false);
     /* found hash and then update */
@@ -594,7 +637,7 @@ int KVContainer::HashSetKV(const Key &key, const std::vector<std::string> &field
     }
     /* put field-value into key */
     bucket.content[key] = obj;
-    keys_pool_.emplace_back(&bucket.content.find(key)->first);
+    keys_pool_.emplace_back(bucket.content.find(key)->first);
   } else { /* found existing key */
     IfKeyNotTypeThenReturn(key, OBJECT_HASH, 0)
   }

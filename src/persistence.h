@@ -7,6 +7,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <thread>
+#include <atomic>
 #include "net/net.h"
 #include "net/commands.h"
 
@@ -34,6 +35,8 @@ public:
 
   void RemoveRedundancy();
 
+  void SetAutoFlush(bool on);
+
 private:
 
   void Flush();
@@ -58,7 +61,8 @@ private:
   std::mutex mtx_;
   std::condition_variable cond_;
   std::thread worker_;
-  bool stopped_;
+  std::atomic<bool> stopped_;
+  std::atomic<bool> auto_flush_;
 };
 
 #endif //__PERSISTENCE_H__

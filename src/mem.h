@@ -8,9 +8,8 @@
 #include <sys/fcntl.h>
 #include <unistd.h>
 
-static std::ifstream ifs_meminfo_sys("/proc/meminfo", std::ios::in);
 static std::ifstream ifs_app_status("/proc/self/status", std::ios::in);
-
+static std::ifstream ifs_meminfo_sys("/proc/meminfo", std::ios::in);
 
 static bool CatMemInfo(size_t &mem_total, size_t &mem_free, size_t &mem_avail) {
   /* unit: kB  */
@@ -20,6 +19,7 @@ static bool CatMemInfo(size_t &mem_total, size_t &mem_free, size_t &mem_avail) {
       return false;
     }
   }
+  ifs_meminfo_sys.seekg(std::ios::beg);
   /* get memory in kB */
   /* first line is MemTotal */
   std::string tmp;
@@ -35,11 +35,12 @@ static bool CatMemInfo(size_t &mem_total, size_t &mem_free, size_t &mem_avail) {
 
 static bool CatSelfMemInfo(size_t &vmsize, size_t& rss) {
   if (!ifs_app_status.is_open()) {
-    ifs_app_status.open("/proc/meminfo", std::ios::in);
+    ifs_app_status.open("/proc/self/status", std::ios::in);
     if (!ifs_app_status.is_open()) {
       return false;
     }
   }
+  ifs_app_status.seekg(std::ios::beg);
   std::stringstream ss;
   ss << ifs_app_status.rdbuf();
 
@@ -50,7 +51,7 @@ static bool CatSelfMemInfo(size_t &vmsize, size_t& rss) {
   /* VmRSS */
   pos = s.find("VmRSS:");
   rss = std::stol(s.substr(pos + 6, std::string::npos));  /* kB */
-  ifs_app_status.close();
+//  ifs_app_status.close();
   return true;
 }
 

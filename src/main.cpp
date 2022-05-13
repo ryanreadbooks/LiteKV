@@ -51,7 +51,6 @@ int main(int argc, char **argv) {
   auto spent = GetCurrentMs() - begin;
   std::cout << "DB loaded in " << spent << " ms.. " << std::endl;
   Server server(&loop, &engine, configs.GetIp(), configs.GetPort());
-
   std::cout << "The server is now ready to accept connections on port " << configs.GetPort() << std::endl;
 
   loop.Loop();

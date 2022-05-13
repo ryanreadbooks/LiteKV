@@ -5,7 +5,7 @@
 #include "net/protocol.h"
 
 AppendableFile::AppendableFile(std::string location, size_t cache_size)
-    : location_(std::move(location)), cache_max_size_(cache_size), stopped_(false) {
+    : location_(std::move(location)), cache_max_size_(cache_size), stopped_(false), auto_flush_(true) {
   cache1_.reserve(cache_size);
   cache2_.reserve(cache_size);
   cur_caches_ = &cache1_;
@@ -37,7 +37,7 @@ void AppendableFile::BackgroundHandler() {
   while (!stopped_) {
     std::unique_lock<std::mutex> lck(mtx_);
     cond_.wait(lck, [this] {
-      return backup_caches_->size() >= cache_max_size_ * 0.80 || stopped_;
+      return auto_flush_ && (backup_caches_->size() >= cache_max_size_ * 0.80 || stopped_);
     });
     /* worker wakes up and we have lock */
     Flush();
@@ -48,7 +48,9 @@ void AppendableFile::Append(const CommandCache &cache) {
   /* always put cache into cur_caches_ */
   if (cur_caches_->size() >= cache_max_size_) {
     Switch();
-    cond_.notify_one();
+    if (auto_flush_) {
+      cond_.notify_one();
+    }
   }
   cur_caches_->push_back(cache);
 }
@@ -66,6 +68,9 @@ void AppendableFile::ReadFromScratch(Engine* engine, EventLoop* loop) {
     ifs.seekg(0, std::ios::end);  /* go to end of file */
     int64_t length = ifs.tellg();  /* report length of the whole file */
     ifs.seekg(0, std::ios::beg);
+    if (length >= 1024 * 1024  * 100) {
+      std::cout << "The size of dumpfile is larger than 100MB, loading it might take a while...\n";
+    }
     Buffer buffer;
     CommandCache cache;
     int64_t n_cur_read = 0;
@@ -185,4 +190,11 @@ void AppendableFile::RemoveRedundancy() {
   /* TODO implement redundancy */
   std::unordered_map<std::string, CommandCache*> caches;
 
+}
+
+void AppendableFile::SetAutoFlush(bool on) {
+  auto_flush_.store(on);
+  if (auto_flush_) {
+    cond_.notify_one();
+  }
 }

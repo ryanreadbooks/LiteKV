@@ -1,9 +1,10 @@
 import argparse
 import random
 import socket
-from time import sleep
+from time import sleep, time
 
 from cv2 import add
+from torch import rand
 
 
 # gen_command(cmd, key, [argv0, argv1, ...])
@@ -132,10 +133,11 @@ def process_commands(data: str):
     return tokens
 
 
-def generate_pesudo_cmds(n):
-    kcan = '0123456789abcdefg'
+def generate_pesudo_cmds(n, all_set):
+    kcan = '0123456789abcdefghijklmnokqrstuvwxyz'
     def random_str(a, b):
-        return kcan[random.randint(0, 16)] * random.randint(0, a) + kcan[random.randint(0, 16)] * random.randint(0, b)
+        random.seed(time())
+        return kcan[random.randint(0, 35)] * random.randint(0, a) + kcan[random.randint(0, 35)] * random.randint(0, b)
     ret = None
     cmds = []
     for i in range(n):
@@ -144,6 +146,8 @@ def generate_pesudo_cmds(n):
         if option == 1:
             # int
             get_or_set = random.randint(0, 1)
+            if all_set:
+               get_or_set = 1 
             if get_or_set == 0:
                 # get
                 ret = ['get', key]
@@ -153,6 +157,8 @@ def generate_pesudo_cmds(n):
         elif option == 2:
             # string
             get_or_set = random.randint(0, 1)
+            if all_set:
+               get_or_set = 1 
             if get_or_set == 0:
                 # get
                 ret = ['get', key]
@@ -163,6 +169,8 @@ def generate_pesudo_cmds(n):
         elif option == 3:
             # list
             list_op = random.randint(0, 3)
+            if all_set:
+               list_op = 1
             if list_op == 0:
                 # lpush
                 ret = ['lpush', key]
@@ -183,6 +191,8 @@ def generate_pesudo_cmds(n):
             # hash
             hop = random.randint(0, 7)
             field = random_str(2, 6)
+            if all_set:
+                hop = 0
             if hop == 0:
                 n_pair = random.randint(1, 10)
                 fvs = []
@@ -226,6 +236,7 @@ arg_parser.add_argument('-d', '--debug', action='store_true', default=False, des
 arg_parser.add_argument('-f', '--flood', action='store_true', default=False, dest='flood', help='Send massive commands to server. Turn on flood mode')
 arg_parser.add_argument('-n', '--n-cmds', type=int, default=1000, dest='ncmds', help='Number of commands per request sending to server when in flood mode')
 arg_parser.add_argument('-q', '--n-request', type=int, default=10000, dest='nreq', help='Number of total requests when in flood mode')
+arg_parser.add_argument('-s', '--allset', action='store_true', default=False, dest='allset', help='Whether to generate all set command in flood mode')
 
 args = arg_parser.parse_args()
 
@@ -243,6 +254,8 @@ if __name__ == '__main__':
         while True:
             print(f'{ip}:{port}> ', end='')
             inputcmd = input()
+            if inputcmd == '':
+                continue
             argvs = process_commands(inputcmd)
             if debug:
                 print(f'input arguments: {argvs}')
@@ -275,7 +288,7 @@ if __name__ == '__main__':
         # random generate commands
         total_bytes = 0
         for i in range(n_req):
-            pesudo_cmds = generate_pesudo_cmds(n=n_cmds)    # List[List]
+            pesudo_cmds = generate_pesudo_cmds(n=n_cmds, all_set=args.allset)    # List[List]
             data = ''
             if debug:
                 print(f'len of commands in this request = {len(pesudo_cmds)}')
