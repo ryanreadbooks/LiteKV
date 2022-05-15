@@ -19,7 +19,7 @@ class AppendableFile {
   using CmdCacheVector = std::vector<CommandCache>;
 
 public:
-  AppendableFile(std::string location, size_t cache_size = 1024);
+  AppendableFile(std::string location, size_t cache_size = 1024, bool auto_flush = true);
 
   ~AppendableFile();
 
@@ -33,7 +33,7 @@ public:
 
   std::vector<CommandCache> ReadFromScratch();
 
-  void RemoveRedundancy();
+  void RemoveRedundancy(const std::string& out_filename);
 
   void SetAutoFlush(bool on);
 

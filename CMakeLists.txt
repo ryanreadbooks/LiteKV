@@ -45,10 +45,11 @@ add_executable_and_link(test_dict "test/test_dict.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_static_string "test/test_static_string.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_time_event "test/test_time_event.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_appendable_file "test/test_appendable_file.cpp" "${SRC}" "${LIBS}")
-add_executable_and_link(generate_pseudo_data "test/generate_pseudo_data.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_config "test/test_config.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_protocol "test/test_protocol.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_buffer "test/test_buffer.cpp" "${SRC}" "${LIBS}")
+add_executable_and_link(generate_pseudo_data "tools/generate_pseudo_data.cpp" "${SRC}" "${LIBS}")
+add_executable_and_link(shrink_dumpfile "tools/shrink_dumpfile.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(kvmain "src/main.cpp" "${SRC}" "${LIBS}")
 
 # benchmark test
@@ -58,6 +59,10 @@ add_executable_and_link(benchmark_string "benchmark/benchmark_string.cpp" "${SRC
 add_executable_and_link(benchmark_list "benchmark/benchmark_list.cpp" "${SRC}" "${LIBS}")
 
 if (TCMALLOC_LIB)
+  set_target_properties(shrink_dumpfile PROPERTIES COMPILE_FLAGS "-O2 -DTCMALLOC_FOUND")
+  target_link_libraries(shrink_dumpfile tcmalloc)
+  set_target_properties(generate_pseudo_data PROPERTIES COMPILE_FLAGS "-O2 -DTCMALLOC_FOUND")
+  target_link_libraries(generate_pseudo_data tcmalloc)
   set_target_properties(kvmain PROPERTIES COMPILE_FLAGS "-O2 -DTCMALLOC_FOUND")
   target_link_libraries(kvmain tcmalloc)
   set_target_properties(benchmark_int PROPERTIES COMPILE_FLAGS "-O2 -DTCMALLOC_FOUND")

@@ -264,7 +264,7 @@ std::string EvictCommand(EventLoop *loop, KVContainer *holder, AppendableFile *a
     cmd.inited = true;
     appendable->Append(cmd);
   }
-  return PackIntReply(ans.size() - 1);
+  return PackIntReply((int)ans.size() - 1);
 }
 
 std::string DelCommand(EventLoop *loop, KVContainer *holder, AppendableFile *appendable, const CommandCache &cmds, bool sync) {
@@ -309,7 +309,7 @@ std::string ExpireCommand(EventLoop *loop, KVContainer *holder, AppendableFile *
   if (!holder->KeyExists(key)) {
     return kInt0Msg; /* key not found, can not set expiration */
   }
-  int64_t interval;
+  int64_t interval; /* beware that this interval is in the unit of second */
   if (CanConvertToInt64(cmds.argv[2], interval)) {
     if (sExpiresMap.find(key) == sExpiresMap.end()) { /* no expiration set for key currently */
       /* create new time event for deletion */
@@ -327,7 +327,7 @@ std::string ExpireCommand(EventLoop *loop, KVContainer *holder, AppendableFile *
       if (sExpiresMap[key] == nullptr) return kInt0Msg;
       long ev_id = sExpiresMap[key]->id;
       if (interval >= 0) {
-        if (!loop->UpdateTimeEvent(ev_id, interval, 1)) {
+        if (!loop->UpdateTimeEvent(ev_id, interval * 1000ul, 1)) {
           return kInt0Msg;
         }
       } else {
