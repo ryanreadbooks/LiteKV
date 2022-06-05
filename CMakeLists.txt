@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 
 project(LiteKV)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_FLAGS "-std=c++11 -ggdb -Wall -Wno-unused")
 set(SRC
     src/core.cpp
