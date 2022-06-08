@@ -1,52 +1,96 @@
 CXX = g++
 CXXFLAGS = -std=c++11 -Wall -ggdb -Wno-unused
-BUILD_DIR = ./build
-OUTPUT_DIR = ./bin
-
-# 指定源文件
-SRC_ROOT = $(wildcard src/*.cpp)
-HEADER_ROOT = $(wildcard src/*.h)
-OBJ_ROOT = $(patsubst %.cpp, %.o, $(SRC_ROOT))
-SRC_NET = $(wildcard src/net/*.cpp)
-HEADER_NET = $(wildcard src/net/*.h)
-OBJ_NET = $(patsubst %.cpp, %.o, $(SRC_NET))
-
-# 指定要生成的中间目标
-SRCS = $(SRC_ROOT)
-SRCS += $(SRC_NET)
-HEADERS = $(HEADER_ROOT)
-HEADERS += $(HEADER_NET)
-OBJS_RAW = $(patsubst %.cpp, %.o, $(SRCS))
-OBJS = $(addprefix ,$(notdir $(OBJS_RAW)))
-
-TEST_PROGS = $(wildcard test/*.cpp)
-TOOLS_PROGS = $(wildcard tools/*.cpp)
-BENCHMARK_PROGS = $(wildcard benchmark/*.cpp)
-MAIN_PROG = src/main.cpp
-
-PROGS = $(MAIN_PROG) $(TEST_PROGS) $(BENCHMARK_PROGS) $(TOOLS_PROGS)
-
-TARGETS = $(addprefix bin/, $(basename $(notdir $(PROGS))))
-
 LINKS = -lpthread
 
-# TODO 如果有tcmalloc则有些文件链接tcmalloc
+BUILD_DIR = ./build_tmp
+BIN_DIR = ./bin_tmp
 
-all: $(TARGETS)
+# 创建出build和bin文件夹
+$(shell test -d $(BUILD_DIR) || mkdir -p $(BUILD_DIR))
+$(shell test -d $(BIN_DIR) || mkdir -p $(BIN_DIR))
 
-.PHONY: clean display
+DIR_SRC_DIR = ./src
+TEST_SRC_DIR = ./test
+BENCHMARK_TEST_SRC_DIR = ./benchmark
+TOOL_SRC_DIR = ./tools
 
-clean:
-	rm -f $(BUILD_DIR)/*
+SRC1 = $(wildcard $(DIR_SRC_DIR)/*.cpp $(DIR_SRC_DIR)/net/*.cpp)
+SRC = $(filter-out $(DIR_SRC_DIR)/main.cpp, $(SRC1))
+OBJ = $(patsubst %.cpp, $(BUILD_DIR)/%.o, $(notdir $(SRC)))
+INC = $(patsubst %, %, $(shell find src -name '[a-zA-Z0-9]*'.h))
+
+# 主程序
+KVMAIN_TARGET = $(BIN_DIR)/kvmain
+
+# 测试程序
+TEST_SRCS = $(wildcard $(TEST_SRC_DIR)/*.cpp)
+TEST_TARGETS = $(patsubst %.cpp, $(BIN_DIR)/%, $(notdir $(TEST_SRCS)))
+
+# benchmark测试程序
+BENCHMARK_SRCS = $(wildcard $(BENCHMARK_TEST_SRC_DIR)/*.cpp)
+BENCHMARK_TARGETS = $(patsubst %.cpp, $(BIN_DIR)/%, $(notdir $(BENCHMARK_SRCS)))
+
+# 两个工具程序
+TOOLS_SRCS = $(wildcard $(TOOL_SRC_DIR)/*.cpp)
+TOOLS_TARGETS = $(patsubst %.cpp, $(BIN_DIR)/%, $(notdir $(TOOLS_SRCS)))
+
+D_TCMALLOC_FLAG =
+TCMALLOC_LINK = 
+TCMALLOC_FOUND = $(shell find /usr/lib/ -name '*tcmalloc*')
+ifneq ($(strip $(TCMALLOC_FOUND)),)
+D_TCMALLOC_FLAG = -O2 -DTCMALLOC_FOUND
+TCMALLOC_LINK = -ltcmalloc
+endif
+
+all: $(KVMAIN_TARGET) $(TEST_TARGETS) $(BENCHMARK_TARGETS) $(TOOLS_TARGETS)
+
+kvmain: $(KVMAIN_TARGET)
+
+test: $(TEST_TARGETS)
+
+benchmark: $(BENCHMARK_TARGETS)
+
+tools: $(TOOLS_TARGETS)
+
+$(TOOLS_TARGETS) : $(BIN_DIR)/% : $(TOOL_SRC_DIR)/%.cpp $(OBJ) $(INC)
+	$(CXX) $(CXXFLAGS) $(OBJ) $< -o $@ $(LINKS) $(D_TCMALLOC_FLAG) $(TCMALLOC_LINK)
+	@echo "Done generating tools"
+
+$(BENCHMARK_TARGETS) : $(BIN_DIR)/% : $(BENCHMARK_TEST_SRC_DIR)/%.cpp $(OBJ) $(INC)
+	$(CXX) $(CXXFLAGS) $(OBJ) $< -o $@ $(LINKS) $(D_TCMALLOC_FLAG) $(TCMALLOC_LINK)
+	@echo "Done generating benchmark test targets"
+
+$(TEST_TARGETS) : $(BIN_DIR)/% : $(TEST_SRC_DIR)/%.cpp $(OBJ) $(INC)
+	$(CXX) $(CXXFLAGS) $(OBJ) $< -o $@ $(LINKS)
+	@echo "Done generating test targets"
+
+$(KVMAIN_TARGET) : $(OBJ) $(INC)
+	$(CXX) $(CXXFLAGS) -c $(DIR_SRC_DIR)/main.cpp -o $(BUILD_DIR)/main.o $(D_TCMALLOC_FLAG)
+	$(CXX) $(CXXFLAGS) $(OBJ) $(BUILD_DIR)/main.o -o $@ $(LINKS) $(TCMALLOC_LINK)
+	@echo "Done generating kvmain"
+
+$(BUILD_DIR)/%.o : $(DIR_SRC_DIR)/net/%.cpp $(INC)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.o : $(DIR_SRC_DIR)/%.cpp $(INC)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+
+.PHONY: clean display check_tcmalloc
 
 display:
-	@echo SRCS = $(SRCS)
-	@echo "-------------------------------------------------"
-	@echo HEADERS = $(HEADERS)
-	@echo "-------------------------------------------------"
-	@echo OBJS = $(OBJS)
-	@echo "-------------------------------------------------"
-	@echo TARGETS = $(TARGETS)
+	@echo $(TEST_TARGETS)
+	@echo $(BENCHMARK_TARGETS)
+	@echo $(OBJ)
+	@echo $(SRC)
 
+clean:
+	-rm -r build/*
+	-rm $(TEST_TARGETS)
+	-rm $(KVMAIN_TARGET)
+	-rm $(BENCHMARK_TARGETS)
+	-rm $(TOOLS_TARGETS)
 
-
+check_tcmalloc:
+	@echo $(D_TCMALLOC_FLAG)
+	
