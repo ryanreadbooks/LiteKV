@@ -1,10 +1,9 @@
 import argparse
 import random
 import socket
+import sys
+import os
 from time import sleep, time
-
-from cv2 import add
-from torch import rand
 
 
 # gen_command(cmd, key, [argv0, argv1, ...])
@@ -140,6 +139,7 @@ def generate_pesudo_cmds(n, all_set):
         return kcan[random.randint(0, 35)] * random.randint(0, a) + kcan[random.randint(0, 35)] * random.randint(0, b)
     ret = None
     cmds = []
+    random.seed(time())
     for i in range(n):
         option = random.randint(1, 4)
         key = random_str(8, 3)
@@ -234,11 +234,57 @@ arg_parser.add_argument('-p', '--port', type=int, default=9527, dest='port', hel
 arg_parser.add_argument('-r', '--raw', action='store_true', default=False, dest='raw', help='Show raw response from server')
 arg_parser.add_argument('-d', '--debug', action='store_true', default=False, dest='debug', help='Turn on debug mode')
 arg_parser.add_argument('-f', '--flood', action='store_true', default=False, dest='flood', help='Send massive commands to server. Turn on flood mode')
+arg_parser.add_argument('-fm', '--flood-multiprocess', action='store_true', default=False, dest='flood_multiprocess', 
+                        help='Send massive commands to server. Turn on flood mode using multiple processes')
+arg_parser.add_argument('-np', '--n-processes', type=int, dest='n_process', default=1, 
+                        help='The number of processes to flush the server when in flood mode and using multiple processes')
 arg_parser.add_argument('-n', '--n-cmds', type=int, default=1000, dest='ncmds', help='Number of commands per request sending to server when in flood mode')
 arg_parser.add_argument('-q', '--n-request', type=int, default=10000, dest='nreq', help='Number of total requests when in flood mode')
 arg_parser.add_argument('-s', '--allset', action='store_true', default=False, dest='allset', help='Whether to generate all set command in flood mode')
 
 args = arg_parser.parse_args()
+
+def flushs_server_single_process():
+    """flush the server using single process
+    """
+    info = f'Process-{os.getpid()}'
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+    s.connect((ip, port))
+    print(f'[{info}] Connected to server ({ip}, {port})')
+    print(f'[{info}] {n_req} requests are performing, every request has {n_cmds} commands in it... ')
+    # random generate commands
+    total_bytes = 0
+    start_time = time()
+    response_time = 0
+    for i in range(n_req):
+        pesudo_cmds = generate_pesudo_cmds(n=n_cmds, all_set=args.allset)    # List[List]
+        data = ''
+        if debug:
+            print(f'[{info}] len of commands in this request = {len(pesudo_cmds)}')
+        for argvs in pesudo_cmds:
+            if len(argvs) == 1:
+                data += gen_command(argvs[0], None, None)
+            elif len(argvs) == 2:
+                data += gen_command(argvs[0], argvs[1], [])
+            else:
+                data += gen_command(argvs[0], argvs[1], argvs[2:])
+            if debug:
+                print(f'[{info}] {argvs}')
+        toserver = bytes(data, encoding='utf8')
+        total_bytes += len(toserver)
+        if debug:
+            print(f'[{info}] total bytes = {len(toserver)}')
+        # print(toserver)
+        tick = time()
+        s.sendall(toserver)
+        s.recv(65535 * 10)
+        response_time += (time() - tick)
+        # sleep(0.0001)
+    end_time = time()
+    print(f'[{info}] Total bytes sent = {total_bytes}')
+    print(f'[{info}] Done in {end_time - start_time}s, total response time = {response_time}s')
+    sleep(2)
+    s.close()
 
 if __name__ == '__main__':
     ip = args.ip
@@ -246,6 +292,8 @@ if __name__ == '__main__':
     show_raw_response = args.raw
     debug = args.debug
     flood_mode = args.flood
+    if args.flood_multiprocess:
+        flood_mode = True
     n_cmds = args.ncmds
     n_req = args.nreq
     if not flood_mode:
@@ -281,34 +329,17 @@ if __name__ == '__main__':
         s.close()
     else:
         # flood the server
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-        s.connect((ip, port))
-        print(f'Connected to server ({ip}, {port})')
-        print(f'{n_req} requests are performing, every request has {n_cmds} commands in it... ')
-        # random generate commands
-        total_bytes = 0
-        for i in range(n_req):
-            pesudo_cmds = generate_pesudo_cmds(n=n_cmds, all_set=args.allset)    # List[List]
-            data = ''
-            if debug:
-                print(f'len of commands in this request = {len(pesudo_cmds)}')
-            for argvs in pesudo_cmds:
-                if len(argvs) == 1:
-                    data += gen_command(argvs[0], None, None)
-                elif len(argvs) == 2:
-                    data += gen_command(argvs[0], argvs[1], [])
-                else:
-                    data += gen_command(argvs[0], argvs[1], argvs[2:])
-                if debug:
-                    print(argvs)
-            toserver = bytes(data, encoding='utf8')
-            total_bytes += len(toserver)
-            if debug:
-                print(f'total bytes = {len(toserver)}')
-            # print(toserver)
-            s.sendall(toserver)
-            sleep(0.0001)
-        print(f'Total bytes sent = {total_bytes}')
-        print('Done')
-        sleep(8)
-        s.close()
+        if not args.flood_multiprocess:
+            flushs_server_single_process()
+        else:
+            # multiple processes to flood the server
+            from multiprocess.pool import Pool
+            print(f'Flooding using {args.n_process} processes...')
+            pool = Pool(processes=args.n_process)
+            print('Flood Begins!!')
+            for i in range(args.n_process):
+                pool.apply_async(flushs_server_single_process)
+            
+            pool.close()
+            pool.join()
+            

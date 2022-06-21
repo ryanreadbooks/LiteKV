@@ -2,8 +2,8 @@ CXX = g++
 CXXFLAGS = -std=c++11 -Wall -ggdb -Wno-unused
 LINKS = -lpthread
 
-BUILD_DIR = ./build_tmp
-BIN_DIR = ./bin_tmp
+BUILD_DIR = ./build
+BIN_DIR = ./bin
 
 # 创建出build和bin文件夹
 $(shell test -d $(BUILD_DIR) || mkdir -p $(BUILD_DIR))
