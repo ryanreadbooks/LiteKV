@@ -51,6 +51,7 @@ add_executable_and_link(test_protocol "test/test_protocol.cpp" "${SRC}" "${LIBS}
 add_executable_and_link(test_buffer "test/test_buffer.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(generate_pseudo_data "tools/generate_pseudo_data.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(shrink_dumpfile "tools/shrink_dumpfile.cpp" "${SRC}" "${LIBS}")
+add_executable_and_link(litekv-benchmark "tools/litekv-benchmark.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(kvmain "src/main.cpp" "${SRC}" "${LIBS}")
 
 # benchmark test

@@ -18,8 +18,9 @@ static double RandDoubleValue(double from, double to) {
 /* Get bucket according to key and lock the bucket */
 #define GetBucketAndLock(key) \
   Bucket &bucket = GetBucket(key); \
-  std::mutex &mtx = bucket.mtx; \
+  /*std::mutex &mtx = bucket.mtx; \
   LockGuard lck(mtx) \
+  */
 
 #define KeyNotFoundInBucket(key) \
   bucket.content.find(key) == bucket.content.end()

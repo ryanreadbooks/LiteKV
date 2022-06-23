@@ -1,6 +1,6 @@
 # LiteKV
 
-### LiteKV is a simple key-value storage implementation. 
+LiteKV is a simple key-value storage implementation. 
 
 ---
 
@@ -60,7 +60,7 @@ make
     <td align="center"> expire key seconds </td>
     <td align="center"> Set expiration for key </td>
   </tr>
-  
+
   <tr>
       <td align="center"> expireat </td>
       <td align="center"> expireat key unix-timestamp </td>
@@ -230,4 +230,57 @@ make
   </tr>  
 
 </table>
+
+
+
+### Benchmark Results
+
+Since our communication protocol is based on **[RESP](https://redis.io/docs/reference/protocol-spec/)**, the `redis-benchmark` tool from `redis` can be used to benchmark this repository.
+
+The following command is used for benchmarking. We make `N_CLIENTS` and `N_THREADS` as two variables;
+
+```bash
+redis-benchmark -h 127.0.0.1 -p 9527 \
+	-c $N_CLIENTS \
+	-n 100000 \
+	-t set,get,incr,lpush,rpush,lpop,rpop,lrange,hset \
+	--threads $N_THREADS \
+	-r 10000 \
+	--csv
+```
+
+#### Results (server and clients run in the same local machine)
+
+##### Environments
+
+Machine:   64bit AMD 3600 CPU + 16G RAM
+
+System:     Ubuntu 16.04
+
+Compiler:  gcc 5.4.0
+
+---
+
+##### Single thread case
+
+<img src="benchmark/figures/st-rps.png" alt="response per second in single thread case" style="zoom:70%;" />
+
+
+
+<img src="benchmark/figures/st-avg-latency-ms.png" alt="average latency in milliseconds in single-thread case" style="zoom:70%;" />
+
+##### Multiple threads case
+
+<img src="benchmark/figures/mt-rps.png" alt="requests per second in multiple threads case" style="zoom:70%;" />
+
+<img src="benchmark/figures/mt-avg-latency-ms.png" alt="average latency in millisecond in multiple threads case" style="zoom:70%;" />
+
+### Future Works
+
+* **Performance Optimization**
+  * string object optimization (COW or SSO)
+  * dlist optimization (redesign and reconstruct)
+* **Features**
+  * support more data structure, such as sets, sorted sets, etc.
+  * sentinel
 
