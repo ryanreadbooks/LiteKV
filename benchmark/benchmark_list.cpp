@@ -9,8 +9,8 @@
 
 using namespace std;
 
-const static int kNum = 1000000;
-const static int kListLen = 100;
+const static int kNum = 100;
+const static int kListLen = 100000;
 const static int kStrLen = 10;
 static KVContainer engine;
 
@@ -41,8 +41,10 @@ int main() {
   cout << "Random push " << kListLen << " elements into " << kNum << " list, elapsed: " << duration.count() << " s" <<  endl;
 
   begin = std::chrono::high_resolution_clock::now();
+  string key_saved;
   for (int i = 0; i < kNum; ++i) {
     Key key(to_string(rand() % kNum));
+    key_saved = key.ToStdString();
     for (int j = 0; j < kListLen / 2; ++j) {
       engine.LeftPop(key, errcode);
     }
@@ -54,6 +56,35 @@ int main() {
   duration = end - begin;
   cout << "Current number of total elements is " << engine.NumItems() << endl;
   cout << "Random pop " << kNum << " times from list, elapsed: " << duration.count() << " s" << endl;
+
+  cout << "Lrange_100\n";
+  begin = std::chrono::high_resolution_clock::now();
+  engine.ListRange(key_saved, 0, 100, errcode);
+  end = std::chrono::high_resolution_clock::now();
+  duration = end - begin;
+  cout << "Lrange_100 took " << duration.count() << " s" << endl;
+
+  cout << "Lrange_300\n";
+  begin = std::chrono::high_resolution_clock::now();
+  engine.ListRange(key_saved, 0, 300, errcode);
+  end = std::chrono::high_resolution_clock::now();
+  duration = end - begin;
+  cout << "Lrange_300 took " << duration.count() << " s" << endl;
+
+  cout << "Lrange_500\n";
+  begin = std::chrono::high_resolution_clock::now();
+  engine.ListRange(key_saved, 0, 500, errcode);
+  end = std::chrono::high_resolution_clock::now();
+  duration = end - begin;
+  cout << "Lrange_500 took " << duration.count() << " s" << endl;
+
+  cout << "Lrange_600\n";
+  begin = std::chrono::high_resolution_clock::now();
+  engine.ListRange(key_saved, 0, 600, errcode);
+  end = std::chrono::high_resolution_clock::now();
+  duration = end - begin;
+  cout << "Lrange_600 took " << duration.count() << " s" << endl;
+
   cout << "Memory status: ";
   cout << ProcessVmSizeAsString() << endl;
 #ifdef TCMALLOC_FOUND

@@ -3,6 +3,5 @@ build
 bin
 .idea
 cmake-build-debug
-benchmark/bench/multi-threads
-benchmark/bench/single-thread
-benchmark/bench/anlysis.py
+benchmark/bench/multi-threads*
+benchmark/bench/single-thread*

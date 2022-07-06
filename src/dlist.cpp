@@ -220,7 +220,7 @@ RANGE_FUNC_HELPER(RangeAsDynaStringVector, ElemType, *elem)
 
 #undef RANGE_FUNC_HELPER
 
-/*std::vector<ElemType> DList::RangeAsDynaStringVector() {
+std::vector<ElemType> DList::RangeAsDynaStringVector() {
   if (Empty()) {
     return {};
   }
@@ -240,7 +240,7 @@ RANGE_FUNC_HELPER(RangeAsDynaStringVector, ElemType, *elem)
     }
   }
   return values;
-}*/
+}
 
 void DList::FreeNodes() {
   Node *tmp = head_;

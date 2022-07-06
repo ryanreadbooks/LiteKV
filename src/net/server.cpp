@@ -105,8 +105,8 @@ void Server::AuxiliaryReadProcParseErrorHandling(Session *session) {
 
 /* FIXME: Can not handle huge flow of request coming in */
 void Server::ReadProc(Session *session, bool &closed) {
-  static int64_t n_total_bytes_recv = 0;
-  static int64_t n_response = 0;
+  // static int64_t n_total_bytes_recv = 0;
+  // static int64_t n_response = 0;
 
   int fd = session->fd;
   Buffer &buffer = session->read_buf;
@@ -119,13 +119,13 @@ void Server::ReadProc(Session *session, bool &closed) {
     buffer.Reset();
     close(fd);
     sessions_.erase(session->name);
-    std::cout << "Client exit, now close connection...\n";
-    std::cout << "Total bytes received = " << n_total_bytes_recv << std::endl;
+    std::cout << "Client-" << session->fd << " exit, now close connection...\n";
+    // std::cout << "Total bytes received = " << n_total_bytes_recv << std::endl;
     closed = true;
     return;
   }
   // std::cout << "Received bytes = " << nbytes << std::endl;
-  n_total_bytes_recv += nbytes;
+  // n_total_bytes_recv += nbytes;
   buffer.Append(buf, nbytes);
 
   bool err = false;
@@ -133,7 +133,7 @@ void Server::ReadProc(Session *session, bool &closed) {
     std::string handle_result = engine_->HandleCommand(loop_, cache);
     session->write_buf.Append(handle_result);
     session->SetWrite();
-    n_response++;
+    // n_response++;
     loop_->epoller->ModifySession(session);
     /* clear cache when one command is fully parsed */
     cache.Clear();

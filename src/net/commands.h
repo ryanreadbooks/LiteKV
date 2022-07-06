@@ -11,7 +11,7 @@
 #include "buffer.h"
 #include "net.h"
 
-static const std::array<const char *, 3> kErrStrTable{"WRONGREQ",
+static constexpr std::array<const char *, 3> kErrStrTable{"WRONGREQ",
                                                       "WRONGTYPE",
                                                       "ERROR"};
 static const char kErrPrefix = '-';

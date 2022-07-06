@@ -12,11 +12,11 @@
 #include "dict.h"
 #include "valueobject.h"
 
-static const int EVICTION_POLICY_RANDOM = 0;
-static const int EVICTION_POLICY_LRU = 1;
+static constexpr int EVICTION_POLICY_RANDOM = 0;
+static constexpr int EVICTION_POLICY_LRU = 1;
 
-static const int kBucketSize = 512;
-static const int kNumEvictCandidates = 16;
+static constexpr int kBucketSize = 512;
+static constexpr int kNumEvictCandidates = 16;
 
 using HashMap = std::unordered_map<Key, ValueObjectPtr, KeyHasher, KeyEqual>;
 using LockGuard = std::unique_lock<std::mutex>;
@@ -29,12 +29,12 @@ struct Bucket {
   HashMap content;
 };
 
-const static int kOkCode = 200;
-const static int kFailCode = 400;
-const static int kKeyNotFoundCode = 401;
-const static int kWrongTypeCode = 402;
-const static int kOutOfRangeCode = 403;
-const static int kOverflowCode = 404;
+constexpr static int kOkCode = 200;
+constexpr static int kFailCode = 400;
+constexpr static int kKeyNotFoundCode = 401;
+constexpr static int kWrongTypeCode = 402;
+constexpr static int kOutOfRangeCode = 403;
+constexpr static int kOverflowCode = 404;
 
 class KVContainer {
 public:
@@ -204,6 +204,12 @@ public:
 
   std::vector<DynamicString> ListRange(const std::string &key, int begin, int end, int &errcode) {
     return ListRange(Key(key), begin, end, errcode);
+  }
+
+  std::vector<std::string> ListRangeAsStdString(const Key &key, int begin, int end, int &errcode);
+
+  std::vector<std::string> ListRangeAsStdString(const std::string &key, int begin, int end, int &errcode) {
+    return ListRangeAsStdString(Key(key), begin, end, errcode);
   }
 
   /**

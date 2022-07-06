@@ -253,11 +253,17 @@ redis-benchmark -h 127.0.0.1 -p 9527 \
 
 ##### Environments
 
+###### Server
+
 Machine:   64bit AMD 3600 CPU + 16G RAM
 
 System:     Ubuntu 16.04
 
 Compiler:  gcc 5.4.0
+
+###### Client
+
+`redis-benchmark version: 7.0.2`
 
 ---
 

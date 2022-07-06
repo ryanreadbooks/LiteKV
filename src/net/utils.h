@@ -14,8 +14,8 @@
 #include <endian.h>
 
 
-const static int OK = 0;
-const static int ERR = -1;
+constexpr static int OK = 0;
+constexpr static int ERR = -1;
 
 int ReadToBuf(int fd, char *buf, int len);
 

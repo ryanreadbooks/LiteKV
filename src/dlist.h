@@ -10,8 +10,8 @@ class DList;
 /* dlist is restricted to store dynamic string only */
 typedef DynamicString ElemType;
 
-const static uint16_t kBlockSize = 128;
-const static uint16_t kRedundantFactor = 2;
+constexpr static uint16_t kBlockSize = 128;
+constexpr static uint16_t kRedundantFactor = 2;
 
 struct Node {
   /* pointer to the previous node */

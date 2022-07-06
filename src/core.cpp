@@ -515,29 +515,38 @@ DynamicString KVContainer::ListPopAux(const Key &key, bool leftpop, int &errcode
   return RetrievePtr(key, DList)->PopRight();
 }
 
-std::vector<DynamicString> KVContainer::ListRange(const Key &key, int begin, int end, int &errcode) {
-  GetBucketAndLock(key);
-  IfKeyNotFoundThenReturn(key, {})
-  IfKeyNotTypeThenReturn(key, OBJECT_LIST, {})
-  /* supported negative index here */
-  DList *list = (DList *) (bucket.content[key]->ptr);
-  int list_len = (int) list->Length();
-  if (begin < 0) {
-    begin = begin + list_len;
-  }
-  if (end < 0) {
-    end = end + list_len;
-  }
-  errcode = kOkCode;
-  /* handle negative index out of range */
-  if (begin < 0 && end > 0) {
-    begin = 0;
-  } else if ((begin > 0 && end < 0) || (begin < 0 && end < 0)) {
-    return {};
-  }
+#define ListRangeCommonOperation                                               \
+  GetBucketAndLock(key);                                                       \
+  IfKeyNotFoundThenReturn(key, {}) IfKeyNotTypeThenReturn(                     \
+      key, OBJECT_LIST, {}) /* supported negative index here */                \
+      DList *list = (DList *)(bucket.content[key]->ptr);                       \
+  int list_len = (int)list->Length();                                          \
+  if (begin < 0) {                                                             \
+    begin = begin + list_len;                                                  \
+  }                                                                            \
+  if (end < 0) {                                                               \
+    end = end + list_len;                                                      \
+  }                                                                            \
+  errcode = kOkCode;                                                           \
+  /* handle negative index out of range */                                     \
+  if (begin < 0 && end > 0) {                                                  \
+    begin = 0;                                                                 \
+  } else if ((begin > 0 && end < 0) || (begin < 0 && end < 0)) {               \
+    return {};                                                                 \
+  }                                                                            \
   UpdateLastVisitTime(key)
+
+std::vector<DynamicString> KVContainer::ListRange(const Key &key, int begin, int end, int &errcode) {
+  ListRangeCommonOperation;
   return RetrievePtr(key, DList)->RangeAsDynaStringVector(begin, end);
 }
+
+std::vector<std::string> KVContainer::ListRangeAsStdString(const Key &key, int begin, int end, int &errcode) {
+  ListRangeCommonOperation;
+  return RetrievePtr(key, DList)->RangeAsStdStringVector(begin, end);
+}
+
+#undef ListRangeCommonOperation
 
 size_t KVContainer::ListLen(const Key &key, int &errcode) {
   GetBucketAndLock(key);

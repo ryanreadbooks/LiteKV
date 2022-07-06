@@ -9,7 +9,7 @@
 #include "net.h"
 #include "commands.h"
 
-#define NET_READ_BUF_SIZE 1024 * 64
+constexpr int NET_READ_BUF_SIZE = 1024 * 64;
 
 class InitIgnoreSigpipe {
 public:

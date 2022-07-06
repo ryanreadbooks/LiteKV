@@ -1,6 +1,7 @@
 #include <cassert>
 #include <algorithm>
 #include <sstream>
+#include <chrono>
 
 #include "commands.h"
 #include "../core.h"
@@ -109,10 +110,15 @@ static std::string PackStringValueReply(const std::string &value) {
 }
 
 static std::string PackStringValueReply(const DynamicString &value) {
-  if (value.Null()) {
-    return kNilMsg;
-  }
   return kStrValPrefix + std::to_string(value.Length()) + kCRLF + value.ToStdString() + kCRLF;
+}
+
+static void PackStringValueIntoStream(std::stringstream& ss, const std::string& value) {
+  ss << kStrValPrefix << value.size() << kCRLF << value << kCRLF;
+}
+
+static void PackStringValueIntoStream(std::stringstream& ss, const DynamicString& value) {
+  ss << kStrValPrefix << value.Length() << kCRLF << value.ToStdString() << kCRLF;
 }
 
 static std::string PackStringMsgReply(const std::string &msg) {
@@ -126,6 +132,32 @@ static std::string PackErrMsg(const char *et, const char *msg) {
 }
 
 static std::string PackArrayMsg(const std::vector<DynamicString> &array) {
+  std::stringstream arr_ss;
+  size_t len = array.size();
+  arr_ss << kArrayPrefix << len << kCRLF;
+  for (const auto &value : array) {
+    // arr_ss << PackStringValueReply(value);
+    PackStringValueIntoStream(arr_ss, value);
+  }
+  return arr_ss.str();
+
+  // std::string ans;
+  // size_t len = array.size();
+  // size_t elem_length = 1;
+  // if (len != 0) {
+  //   elem_length = array[0].Length();
+  // }
+  // ans.reserve(len * elem_length * 2);
+  // ans += kArrayPrefix;
+  // ans += std::to_string(len);
+  // ans += kCRLF;
+  // for (const auto& value : array) {
+  //   ans += PackStringValueReply(value);
+  // }
+  // return ans;
+}
+
+static std::string PackArrayMsg(const std::vector<std::string> &array) {
   std::stringstream arr_ss;
   size_t len = array.size();
   arr_ss << kArrayPrefix << len << kCRLF;
@@ -639,10 +671,17 @@ std::string LRangeCommand(EventLoop *loop, KVContainer *holder, AppendableFile *
     /* range index no valid */
     return kInvalidIntegerMsg;
   }
+  auto begin_us = GetCurrentUs();
   std::vector<DynamicString> ranges = holder->ListRange(key, begin_idx, end_idx, errcode);
+  auto end_us = GetCurrentUs();
+  // std::cout << "get ranges took " << (end_us - begin_us) << " us" << std::endl;
   if (errcode == kOkCode) {
     if (!ranges.empty()) {
-      return PackArrayMsg(ranges);
+      // begin_us = GetCurrentUs();
+      auto ret =  PackArrayMsg(ranges);
+      // end_us = GetCurrentUs();
+      // std::cout << "pack array took " << (end_us - begin_us) << " us" << std::endl;
+      return ret;
     }
   } else {
     IfWrongTypeReturn(errcode)
