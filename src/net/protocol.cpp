@@ -39,31 +39,6 @@ bool AuxiliaryReadProc(Buffer &buffer, CommandCache &cache, int nbytes) {
 }
 
 bool TryParseFromBuffer(Buffer &buffer, CommandCache &cache, bool &err) {
-  auto show_buffer = [](Buffer &s) {
-    for (auto &c : s.ReadableAsString()) {
-      if (c == '\r') {
-        std::cout << "\\r";
-      } else if (c == '\n') {
-        std::cout << "\\n";
-      } else {
-        std::cout << c;
-      }
-    }
-    std::cout << std::endl;
-  };
-
-  auto show_str = [](const std::string& s) {
-    if (s.empty()) {
-      std::cout << "(nil)\n";
-    } else if (s == "\r") {
-      std::cout << "\\r\n";
-    } else if (s == "\n") {
-      std::cout << "\\n\n";
-    } else {
-      std::cout << s << std::endl;
-    }
-  };
-
   if (buffer.ReadableBytes() <= 0) {
     return false;
   }

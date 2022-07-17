@@ -1,4 +1,4 @@
-#include <signal.h>
+#include <csignal>
 #include "config.h"
 #include "net/server.h"
 #ifdef TCMALLOC_FOUND

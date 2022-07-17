@@ -5,6 +5,10 @@
 #include "net/protocol.h"
 #include "str.h"
 
+#define OP_TYPE_LIST 0
+#define OP_TYPE_HASH 1
+#define OP_TYPE_PLAIN 2
+
 AppendableFile::AppendableFile(std::string location, size_t cache_size, bool auto_flush)
     : location_(std::move(location)), cache_max_size_(cache_size),
       stopped_(false), auto_flush_(auto_flush) {
@@ -160,7 +164,7 @@ void AppendableFile::RemoveRedundancy(const std::string &source_file) {
   */
   /* load dump file and iterate the whole file to process */
   std::cout << "Starts analysing and removing redundancy...\n";
-  /* map to store key-operation pairs */
+  /* map to store key-operation pairs: to store what operations that a key has */
   std::unordered_map<std::string, std::list<CommandCache>> cache_map;
   std::ifstream ifs(source_file, std::ios::in);
   if (ifs.is_open()) {
@@ -173,10 +177,12 @@ void AppendableFile::RemoveRedundancy(const std::string &source_file) {
     std::cout << "Populating caches...\n";
     CommonOperation(ifs, populate_caches_func);
     /* process all keys command operations */
+    size_t counter = 0;
     for (auto &&item : cache_map) {
+      std::cout << "Processing (" << ++counter << "/" << cache_map.size() << ')' << "...\n";
       /* commands on the same list have identical key */
       const std::string &key = item.second.front().argv[1];
-      std::queue<CommandCache> sequential;
+      std::queue<CommandCache> sequential;  /* sequential is to store a serial of commands on one key in the original order */
       const std::list<CommandCache> commands = item.second;
       for (auto &&cmd : commands) {
         const std::string &operation = cmd.argv[0];
@@ -211,11 +217,13 @@ void AppendableFile::RemoveRedundancy(const std::string &source_file) {
       std::deque<std::string> aux_list; /* list insertion simulation */
       std::unordered_map<std::string, std::string> aux_hash; /* hash insertion simulation */
       CommandCache cache;
+      uint8_t op_type;
       if (!sequential.empty()) {
         while (!sequential.empty()) {
           const std::vector<std::string>& operands = sequential.front().argv;
           const std::string &op = operands[0];
           if (op == "lpush" || op == "rpush" || op == "lpop" || op == "rpop" || op == "lsetindex") {
+            op_type = OP_TYPE_LIST;
             /* if starts with list operation, the rest is list operation */
             if (op == "lpush") {
               for (size_t i = 2; i < operands.size(); ++i) {
@@ -233,15 +241,8 @@ void AppendableFile::RemoveRedundancy(const std::string &source_file) {
               const std::string& idx = operands[2];
               aux_list[std::stoul(idx)] = operands[3];
             }
-            /* sync command into buffer */
-            cache.argv.assign(aux_list.begin(), aux_list.end());
-            cache.argv.insert(cache.argv.begin(), key);
-            cache.argv.insert(cache.argv.begin(), "rpush");
-            cache.argc = cache.argv.size();
-            Append(cache);
-            cache.Clear();
-            aux_list.clear();
           } else if (op == "hset" || op == "hdel") {
+            op_type = OP_TYPE_HASH;
             /* if starts with hash operation, the rest is hash operation */
             if (op == "hset") {
               for (size_t i = 2; i < operands.size(); i += 2) {
@@ -252,22 +253,35 @@ void AppendableFile::RemoveRedundancy(const std::string &source_file) {
                 aux_hash.erase(operands[i]);
               }
             }
-            /* sync command into buffer */
-            for (auto&& kv : aux_hash) {
-              cache.argv.emplace_back(kv.first);
-              cache.argv.emplace_back(kv.second);
-            }
-            cache.argv.insert(cache.argv.begin(), key);
-            cache.argv.insert(cache.argv.begin(), "hset");
-            cache.argc = cache.argv.size();
-            Append(cache);
-            cache.Clear();
-            aux_hash.clear();
           } else {
+            op_type = OP_TYPE_PLAIN;
             /* other type of data just normal handling */
             Append(sequential.front());
           }
           sequential.pop();
+        }
+        /* After done processing a series of operations on this key, we can now restore the command that can generate the final result and add it to file */
+        if (op_type == OP_TYPE_LIST) {
+          /* sync list generation command into buffer */
+          cache.argv.assign(aux_list.begin(), aux_list.end());
+          cache.argv.insert(cache.argv.begin(), key);
+          cache.argv.insert(cache.argv.begin(), "rpush");
+          cache.argc = cache.argv.size();
+          Append(cache);
+          cache.Clear();
+          aux_list.clear();
+        } else if (op_type == OP_TYPE_HASH) {
+          /* sync hash generation command into buffer */
+          for (auto&& kv : aux_hash) {
+            cache.argv.emplace_back(kv.first);
+            cache.argv.emplace_back(kv.second);
+          }
+          cache.argv.insert(cache.argv.begin(), key);
+          cache.argv.insert(cache.argv.begin(), "hset");
+          cache.argc = cache.argv.size();
+          Append(cache);
+          cache.Clear();
+          aux_hash.clear();
         }
       }
     }

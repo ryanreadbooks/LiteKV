@@ -11,8 +11,6 @@
 
 using namespace std::placeholders;
 
-static InitIgnoreSigpipe sIgnoreSIGPIPEIniter;
-
 int Server::next_session_id_ = 1;
 
 Server::Server(EventLoop *loop, Engine *engine, const std::string &ip, uint16_t port) :
@@ -25,8 +23,25 @@ Server::Server(EventLoop *loop, Engine *engine, const std::string &ip, uint16_t 
 }
 
 Server::~Server() {
-  /* TODO close all connection and release all session and listen_session */
+  /* TODO close all connection and release all session */
   FreeListenSession();
+  FreeClientSessions();
+}
+
+bool Server::AddSessionToSubscription(const std::string& chan_name, Session *sess) {
+  if (sess != nullptr && sessions_.find(sess->name) != sessions_.end()) {
+    subscription_sessions_[chan_name].push_back(sessions_[sess->name]);
+    return true;
+  }
+  return false;
+}
+
+void Server::RemoveSessionFromSubscription(const std::string& chan_name, Session* sess) {
+  subscription_sessions_[chan_name].remove_if([&sess](const SessionPtr& sess_ptr) { return sess_ptr->name == sess->name; });
+}
+
+bool Server::HasSubscriptionChannel(const std::string &chan_name) {
+  return subscription_sessions_.find(chan_name) != subscription_sessions_.end();
 }
 
 void Server::InitListenSession() {
@@ -60,6 +75,18 @@ void Server::FreeListenSession() {
     loop_->epoller->DetachSession(listen_session_);
     delete listen_session_;
     listen_session_ = nullptr;
+  }
+}
+
+void Server::FreeClientSessions() {
+  /* free subscription_sessions_ and sessions_ */
+  subscription_sessions_.clear();
+  /* close all connected sessions */
+  if (!sessions_.empty()) {
+    for (auto&& session_pair : sessions_) {
+      auto& sess = session_pair.second;
+      close(sess->fd);
+    }
   }
 }
 
@@ -118,6 +145,12 @@ void Server::ReadProc(Session *session, bool &closed) {
     session->watched = false;
     buffer.Reset();
     close(fd);
+    /* remove sessions from subscription */
+    if (!session->subscribed_channels.empty()) {
+      for (auto it = session->subscribed_channels.begin(); it != session->subscribed_channels.end(); it++) {
+        subscription_sessions_[*it].remove_if([=] (const SessionPtr& sess_ptr) { return sess_ptr->name == session->name; });
+      }
+    }
     sessions_.erase(session->name);
     std::cout << "Client-" << session->fd << " exit, now close connection...\n";
     // std::cout << "Total bytes received = " << n_total_bytes_recv << std::endl;
@@ -130,67 +163,19 @@ void Server::ReadProc(Session *session, bool &closed) {
 
   bool err = false;
   while (TryParseFromBuffer(buffer, cache, err) && !err) {
-    std::string handle_result = engine_->HandleCommand(loop_, cache);
+    sOptionalHandlerParamsObj.server = this;
+    std::string handle_result = engine_->HandleCommand(loop_, cache, true, session, &sOptionalHandlerParamsObj);
     session->write_buf.Append(handle_result);
     session->SetWrite();
     // n_response++;
-    loop_->epoller->ModifySession(session);
+    loop_->epoller->ModifySession(session); /* FIXME no need to modify session every time */
     /* clear cache when one command is fully parsed */
     cache.Clear();
   }
-
-  /*　parse request */
-  /* continue processing from cache */
-//  size_t parse_start_idx = buffer.BeginReadIdx();
-//  if (cache.inited && cache.argc > cache.argv.size()) {
-//    if (!AuxiliaryReadProc(buffer, cache, nbytes)) {
-//      AuxiliaryReadProcParseErrorHandling(session);
-//      return;
-//    }
-//  } else { /* cache not inited or this is a brand new command request */
-//    parse_protocol_new_request:
-//    if (buffer.ReadStdString(1) == "*") { /* a brand new command */
-//      buffer.ReaderIdxForward(1);
-//      /* argc */
-//      size_t step;
-//      cache.argc = buffer.ReadLongAndForward(step);
-//      if (buffer.ReadStdString(2) != kCRLF) {
-//        AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
-//        AuxiliaryReadProcParseErrorHandling(session);
-//        return;
-//      }
-//      if (buffer.ReadStdString(2) != kCRLF) {
-//        AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
-//        AuxiliaryReadProcParseErrorHandling(session);
-//        return;
-//      }
-//      buffer.ReaderIdxForward(2);
-//      cache.inited = true;
-//      if (!AuxiliaryReadProc(buffer, cache, nbytes)) {
-//        AuxiliaryReadProcParseErrorHandling(session);
-//        return;
-//      }
-//    } else {
-//      AuxiliaryReadProcCleanup(buffer, cache, parse_start_idx, nbytes);
-//      AuxiliaryReadProcParseErrorHandling(session);
-//      return;
-//    }
-//  }
-//  /* successfully parse one whole request, use it to operator the database */
-//  if (cache.argc != 0 && cache.argc == cache.argv.size()) {
-//    /*　one whole command fully received till now, process it */
-//    std::string handle_result = engine_->HandleCommand(loop_, cache);
-//    session->write_buf.Append(handle_result);
-//    session->SetWrite();
-//    loop_->epoller->ModifySession(session);/* FIXME no need to modify session every time */
-//    /* clear cache when one command is fully parsed */
-//    cache.Clear();
-//    n_response++;
-//    /* handle multiple request commands received in one read */
-//    if (buffer.ReadableBytes() > 0 && buffer.ReadStdString(1) == "*") {
-//      goto parse_protocol_new_request;
-//    }
-//  }
+  /* if err occurs, then we assume the command syntax is invalid */
+  if (err) {
+    AuxiliaryReadProcParseErrorHandling(session);
+  }
 }
 
 void Server::FillErrorMsg(Buffer &buffer, ErrType errtype, const char *msg) const {
@@ -200,7 +185,6 @@ void Server::FillErrorMsg(Buffer &buffer, ErrType errtype, const char *msg) cons
 }
 
 void Server::WriteProc(Session *session, bool &closed) {
-  /* TODO handle write process */
   int fd = session->fd;
   Buffer &buffer = session->write_buf;
   if (buffer.ReadableBytes() <= 0) {
@@ -212,7 +196,6 @@ void Server::WriteProc(Session *session, bool &closed) {
   // std::cout << "Doing write process, write buffer is => " << buffer.ReadableAsString() << std::endl;
   /* ensure all data has been sent, then unregister EPOLLOUT to this fd */
   size_t readable_bytes = buffer.ReadableBytes();
-  /* FIXME bug */
   int nbytes = WriteFromBuf(fd, static_cast<const char *>(buffer.BeginRead()), readable_bytes);
   // std::cout << "Send " << nbytes << " bytes response to client, readable_bytes = " << readable_bytes <<"\n";
   /* FIXME optimize */

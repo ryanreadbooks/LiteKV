@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <sstream>
 #include <vector>
@@ -73,6 +74,9 @@ struct CommandCache {
   }
 };
 
+#define SESSION_MODE_REGULAR (1u << 0u) /* session is in regular mode for read/write */
+#define SESSION_MODE_PUBSUB (1u << 1u)  /* session is in pub/sub mode, the session is ok to be published messages */
+
 struct Session {
 
   int fd; /* corresponding fd */
@@ -85,14 +89,18 @@ struct Session {
   ProcFuncType write_proc; /* write handler */
 
   EventLoop *loop;
-  /* indicate session is being watched or not */
 
   Buffer read_buf; /* read buffer */
   Buffer write_buf;/* write buffer */
 
   CommandCache cache;
-  std::string name;
+  std::string name; /* the name of this session */
+
+  /* indicate session is being watched or not */
   bool watched = false;
+
+  uint32_t modes = SESSION_MODE_REGULAR;  /* session mode */
+  std::unordered_set<std::string> subscribed_channels = {};  /* the channels which this session has already subscribed to */
 
   Session(int fd, uint32_t mask, ProcFuncType rpr, ProcFuncType wpr,
           EventLoop *loop, std::string name) : fd(fd), mask(mask),
@@ -100,7 +108,9 @@ struct Session {
                                                loop(loop), name(std::move(name)) {}
 
   ~Session() {
-    std::cout << "session closed\n";
+    read_buf.Reset();
+    write_buf.Reset();
+    watched = false;
   }
 
   void SetRead() {
@@ -118,6 +128,15 @@ struct Session {
   void SetReadWrite() {
     mask = EPOLLIN | EPOLLOUT;
   }
+
+  void SetPubSubMode() {
+    modes |= SESSION_MODE_PUBSUB;
+  }
+
+  void UnsetPubSubMode() {
+    modes &= ~SESSION_MODE_PUBSUB;
+  }
+
 };
 
 typedef std::shared_ptr<Session> SessionPtr;

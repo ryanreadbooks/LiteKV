@@ -5,7 +5,7 @@ LINKS = -lpthread
 BUILD_DIR = ./build
 BIN_DIR = ./bin
 
-# 创建出build和bin文件夹
+# Create 'build' and 'bin' folders
 $(shell test -d $(BUILD_DIR) || mkdir -p $(BUILD_DIR))
 $(shell test -d $(BIN_DIR) || mkdir -p $(BIN_DIR))
 
@@ -19,18 +19,18 @@ SRC = $(filter-out $(DIR_SRC_DIR)/main.cpp, $(SRC1))
 OBJ = $(patsubst %.cpp, $(BUILD_DIR)/%.o, $(notdir $(SRC)))
 INC = $(patsubst %, %, $(shell find src -name '[a-zA-Z0-9]*'.h))
 
-# 主程序
+# main program
 KVMAIN_TARGET = $(BIN_DIR)/kvmain
 
-# 测试程序
+# testing programs
 TEST_SRCS = $(wildcard $(TEST_SRC_DIR)/*.cpp)
 TEST_TARGETS = $(patsubst %.cpp, $(BIN_DIR)/%, $(notdir $(TEST_SRCS)))
 
-# benchmark测试程序
+# benchmark testing programs
 BENCHMARK_SRCS = $(wildcard $(BENCHMARK_TEST_SRC_DIR)/*.cpp)
 BENCHMARK_TARGETS = $(patsubst %.cpp, $(BIN_DIR)/%, $(notdir $(BENCHMARK_SRCS)))
 
-# 两个工具程序
+# tools
 TOOLS_SRCS = $(wildcard $(TOOL_SRC_DIR)/*.cpp)
 TOOLS_TARGETS = $(patsubst %.cpp, $(BIN_DIR)/%, $(notdir $(TOOLS_SRCS)))
 

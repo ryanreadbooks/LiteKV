@@ -288,5 +288,10 @@ Compiler:  gcc 5.4.0
   * dlist optimization (redesign and reconstruct)
 * **Features**
   * support more data structure, such as sets, sorted sets, etc.
+  * transaction
+  * make it distributed
+  * master-slave mode
+  * pub/sub mode
   * sentinel
+  * use connection pool
 

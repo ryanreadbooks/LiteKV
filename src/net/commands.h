@@ -10,6 +10,7 @@
 #include "../mem.h"
 #include "buffer.h"
 #include "net.h"
+#include "server.h"
 
 static constexpr std::array<const char *, 3> kErrStrTable{"WRONGREQ",
                                                       "WRONGTYPE",
@@ -24,28 +25,28 @@ static const char *kCRLF = "\r\n";
 #define kInt0Msg ":0\r\n"
 #define kIntMinus2Msg ":-2\r\n"
 #define kIntMinus1Msg ":-1\r\n"
-#define kNilMsg "$-1\r\n";
+#define kNilMsg "$-1\r\n"
 #define kOkMsg "+OK\r\n"
-#define kPONGMsg "+PONG\r\n";
+#define kPONGMsg "+PONG\r\n"
 #define kArrayEmptyMsg "*0\r\n"
 #define kNotOkMsg "-ERROR failed\r\n"
-#define kNoSuchKeyMsg "-ERROR no such key"
+#define kNoSuchKeyMsg "-ERROR no such key\r\n"
 #define kWrongTypeMsg "-WRONGTYPE operation to a key holding wrong type of value\r\n"
 #define kOutOfRangeMsg "-ERROR index out of range\r\n"
 #define kInvalidOpCodeMsg "-ERROR unsupported command\r\n"
-#define kInvalidIntegerMsg "-ERROR index or value is not an integer"
-#define kInt64OverflowMsg "-ERROR integer overflow"
-#define kNotSupportedYetMsg "-ERROR command not supported yet"
+#define kInvalidIntegerMsg "-ERROR index or value is not an integer\r\n"
+#define kInt64OverflowMsg "-ERROR integer overflow\r\n"
+#define kNotSupportedYetMsg "-ERROR command not supported yet\r\n"
 
-enum ErrType {
-  WRONGREQ = 0, /* can not parse request */
-  WRONGTYPE = 1,/* wrong type for operator */
-  ERROR = 2       /* others */
-};
+class Server;                 /* in server.h */
+struct OptionalHandlerParams;  /* in server.h */
+class AppendableFile;         /* in persistence.h */
 
-class AppendableFile;
+/* the parameters list for `CommandHandler` function */
+#define PARAMETERS_LIST EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool, Session*, OptionalHandlerParams*
 
-typedef std::string (*CommandHandler)(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+/* Not all CommandHandler function instance use all parameters */
+typedef std::string (*CommandHandler)(PARAMETERS_LIST);
 
 class Engine {
 public:
@@ -53,10 +54,20 @@ public:
 
   ~Engine();
 
-  std::string HandleCommand(EventLoop *loop, const CommandCache &cmds, bool flag = true);
+  /**
+   * Handle the command coming in.
+   * @param loop The main event loop.
+   * @param cmds The command to be handled.
+   * @param sync Synchronize this command to file or not.
+   * @return Reply string.
+   */
+  std::string HandleCommand(EventLoop *loop, const CommandCache &cmds, bool sync = true, Session* sess = nullptr, OptionalHandlerParams* options = nullptr);
 
-  void HandleCommand(EventLoop *loop, const CommandCache &cmds, Buffer &out_buf);
-
+  /**
+   * Check if operation code is valid.
+   * @param opcode Given operation code
+   * @return
+   */
   static bool OpCodeValid(const std::string &opcode);
 
   bool RestoreFromAppendableFile(EventLoop *loop, AppendableFile *history);
@@ -78,85 +89,94 @@ private:
 };
 
 /* generic command */
-std::string OverviewCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string OverviewCommand(PARAMETERS_LIST);
 
-std::string NumItemsCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string NumItemsCommand(PARAMETERS_LIST);
 
-std::string PingCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string PingCommand(PARAMETERS_LIST);
 
-std::string EvictCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string EvictCommand(PARAMETERS_LIST);
 
-std::string DelCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string DelCommand(PARAMETERS_LIST);
 
-std::string ExistsCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string ExistsCommand(PARAMETERS_LIST);
 
-std::string TypeCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string TypeCommand(PARAMETERS_LIST);
 
-std::string ExpireCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string ExpireCommand(PARAMETERS_LIST);
 
-std::string ExpireAtCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string ExpireAtCommand(PARAMETERS_LIST);
 
-std::string TTLCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string TTLCommand(PARAMETERS_LIST);
 
 /* int or string command */
-std::string SetCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string SetCommand(PARAMETERS_LIST);
 
-std::string GetCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string GetCommand(PARAMETERS_LIST);
 
 /* int command */
-std::string IncrCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string IncrCommand(PARAMETERS_LIST);
 
-std::string DecrCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string DecrCommand(PARAMETERS_LIST);
 
-std::string IncrByCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string IncrByCommand(PARAMETERS_LIST);
 
-std::string DecrByCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string DecrByCommand(PARAMETERS_LIST);
 
 /* string command */
-std::string StrlenCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string StrlenCommand(PARAMETERS_LIST);
 
-std::string AppendCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string AppendCommand(PARAMETERS_LIST);
 
-std::string GetRangeCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string GetRangeCommand(PARAMETERS_LIST);
 
-std::string SetRangeCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string SetRangeCommand(PARAMETERS_LIST);
 
 /* list command */
-std::string LLenCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string LLenCommand(PARAMETERS_LIST);
 
-std::string LPopCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string LPopCommand(PARAMETERS_LIST);
 
-std::string LPushCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string LPushCommand(PARAMETERS_LIST);
 
-std::string RPopCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string RPopCommand(PARAMETERS_LIST);
 
-std::string RPushCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string RPushCommand(PARAMETERS_LIST);
 
-std::string LRangeCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string LRangeCommand(PARAMETERS_LIST);
 
-std::string LInsertCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string LInsertCommand(PARAMETERS_LIST);
 
-std::string LRemCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string LRemCommand(PARAMETERS_LIST);
 
-std::string LSetCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string LSetCommand(PARAMETERS_LIST);
 
-std::string LIndexCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string LIndexCommand(PARAMETERS_LIST);
 
 /* hash command */
-std::string HSetCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string HSetCommand(PARAMETERS_LIST);
 
-std::string HGetCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string HGetCommand(PARAMETERS_LIST);
 
-std::string HDelCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string HDelCommand(PARAMETERS_LIST);
 
-std::string HExistsCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string HExistsCommand(PARAMETERS_LIST);
 
-std::string HGetAllCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string HGetAllCommand(PARAMETERS_LIST);
 
-std::string HKeysCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string HKeysCommand(PARAMETERS_LIST);
 
-std::string HValsCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string HValsCommand(PARAMETERS_LIST);
 
-std::string HLenCommand(EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool);
+std::string HLenCommand(PARAMETERS_LIST);
+
+/*　pub/sub commands */
+std::string PubSubPublishCommand(PARAMETERS_LIST);
+
+std::string PubSubSubscribeCommand(PARAMETERS_LIST);
+
+std::string PubSubUnsubscribeCommand(PARAMETERS_LIST);
+
+#undef PARAMETERS_LIST
 
 # endif // __ENGINE_H__
