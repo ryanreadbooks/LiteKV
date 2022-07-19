@@ -133,7 +133,7 @@ static void PackStringValueIntoStream(std::stringstream& ss, const std::string& 
 }
 
 static void PackStringValueIntoStream(std::stringstream& ss, const DynamicString& value) {
-  ss << kStrValPrefix << value.Length() << kCRLF << value.ToStdString() << kCRLF;
+  ss << kStrValPrefix << value.Length() << kCRLF << value << kCRLF;
 }
 
 static std::string PackStringMsgReply(const std::string &msg) {

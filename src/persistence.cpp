@@ -152,7 +152,7 @@ bool AppendableFile::OpenLocationFile() {
 }
 
 void AppendableFile::Switch() {
-  std::lock_guard<std::mutex> lck(mtx_);
+  std::lock_guard<std::mutex> lck(mtx_);  /* FIXME: may block request outside and cause slow response */
   std::swap(cur_caches_, backup_caches_);
 }
 
