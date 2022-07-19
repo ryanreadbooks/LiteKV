@@ -136,6 +136,7 @@ std::vector<CommandCache> AppendableFile::ReadFromScratch() {
 void AppendableFile::Flush() {
   /* always flush backup_caches_ into disk */
   if (OpenLocationFile()) {
+    std::unique_lock<std::mutex> lck(mtx_); /* use lock to prevent backup_caches_ from being changed by other thread */
     for (const auto &item : *backup_caches_) {
       fs_ << item.ToProtocolString();
     }
@@ -152,7 +153,7 @@ bool AppendableFile::OpenLocationFile() {
 }
 
 void AppendableFile::Switch() {
-  std::lock_guard<std::mutex> lck(mtx_);
+  std::lock_guard<std::mutex> lck(mtx_);  /* FIXME: may block request outside and cause slow response */
   std::swap(cur_caches_, backup_caches_);
 }
 
