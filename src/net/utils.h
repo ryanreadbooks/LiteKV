@@ -13,6 +13,9 @@
 #include <netinet/tcp.h>
 #include <endian.h>
 
+#define KEEPALIVE_IDLE 300
+#define KEEPALIVE_INTVL 100
+#define KEEPALIVE_CNT 3
 
 constexpr static int OK = 0;
 constexpr static int ERR = -1;
@@ -32,6 +35,8 @@ int DisableTcpNoDelay(int fd);
 int SetReuseAddress(int fd);
 
 int SetReusePort(int fd);
+
+int SetKeepAlive(int fd);
 
 static uint16_t HostToNet16(uint16_t host16) {
   return htobe16(host16);

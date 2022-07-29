@@ -86,3 +86,27 @@ int SetReusePort(int fd) {
   }
   return OK;
 }
+
+int SetKeepAlive(int fd) {
+  int val = 1;
+  if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &val, sizeof(val)) == -1) {
+    std::cerr << "setsockopt SO_KEEPALIVE: " << strerror(errno) << std::endl;
+    return ERR;
+  }
+  val = KEEPALIVE_IDLE;
+  if (setsockopt(fd, SOL_TCP, TCP_KEEPIDLE, &val, sizeof(val)) == -1) {
+    std::cerr << "setsockopt TCP_KEEPIDLE: " << strerror(errno) << std::endl;
+    return ERR;
+  }
+  val = KEEPALIVE_INTVL;
+  if (setsockopt(fd, SOL_TCP, TCP_KEEPINTVL, &val, sizeof(val)) == -1) {
+    std::cerr << "setsockopt TCP_KEEPINTVL: " << strerror(errno) << std::endl;
+    return ERR;
+  }
+  val = KEEPALIVE_CNT;
+  if (setsockopt(fd, SOL_TCP, TCP_KEEPCNT, &val, sizeof(val)) == -1) {
+    std::cerr << "setsockopt TCP_KEEPCNT: " << strerror(errno) << std::endl;
+    return ERR;
+  }
+  return OK;
+}

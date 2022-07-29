@@ -112,6 +112,7 @@ void Server::AcceptProc(Session *session, bool &closed) {
     if (sess != nullptr) {
       /* attach new session into epoll */
       SetFdNonBlock(remote_fd);
+      SetKeepAlive(remote_fd);  /* we use tcp keepalive to close broken socket connection */
       if (loop_->epoller->AttachSession(sess)) {
         // std::cout << "fd=" << sess->fd << " added into eventloop watch\n";
         sess->watched = true;
