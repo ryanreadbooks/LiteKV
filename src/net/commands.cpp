@@ -193,6 +193,7 @@ static std::string PackEmptyArrayMsg(size_t size) {
 
 Engine::Engine(KVContainer *container, Config *config) :
     container_(container), config_(config) {
+  assert(config_ != nullptr);
   sEvictPolicy = config_->LruEnabled() ? EVICTION_POLICY_LRU : EVICTION_POLICY_RANDOM;
   std::thread bg_worker(std::bind(&Engine::UpdateMemInfo, this));
   worker_.swap(bg_worker);

@@ -36,7 +36,7 @@ int SetReuseAddress(int fd);
 
 int SetReusePort(int fd);
 
-int SetKeepAlive(int fd);
+int SetKeepAlive(int fd, int idle, int interval, int cnt);
 
 static uint16_t HostToNet16(uint16_t host16) {
   return htobe16(host16);

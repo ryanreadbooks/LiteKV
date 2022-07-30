@@ -33,7 +33,7 @@ static InitIgnoreSigpipe sIgnoreSIGPIPEIniter;
 
 class Server {
 public:
-  Server(EventLoop* loop, Engine* engine, const std::string& ip, uint16_t port);
+  Server(EventLoop* loop, Engine* engine, Config *config, const std::string& ip, uint16_t port);
 
   ~Server();
 
@@ -78,6 +78,7 @@ private:
 private:
   EventLoop *loop_ = nullptr;
   Engine* engine_ = nullptr;
+  Config* config_ = nullptr;
   Ipv4Addr addr_;
   int listen_fd_;
   /* all connected sessions */

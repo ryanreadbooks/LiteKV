@@ -13,17 +13,19 @@ using namespace std::placeholders;
 
 int Server::next_session_id_ = 1;
 
-Server::Server(EventLoop *loop, Engine *engine, const std::string &ip, uint16_t port) :
-    loop_(loop), engine_(engine), addr_(ip, port) {
+Server::Server(EventLoop *loop, Engine *engine, Config *config,
+               const std::string &ip, uint16_t port)
+    : loop_(loop), engine_(engine), config_(config), addr_(ip, port) {
   if (loop == nullptr) {
     std::cerr << "No loop is specified for the server\n";
     exit(EXIT_FAILURE);
   }
+  assert(config_ != nullptr);
   InitListenSession();
 }
 
 Server::~Server() {
-  /* TODO close all connection and release all session */
+  /* close all connections and release all sessions */
   FreeListenSession();
   FreeClientSessions();
 }
@@ -112,7 +114,11 @@ void Server::AcceptProc(Session *session, bool &closed) {
     if (sess != nullptr) {
       /* attach new session into epoll */
       SetFdNonBlock(remote_fd);
-      SetKeepAlive(remote_fd);  /* we use tcp keepalive to close broken socket connection */
+      int interval = config_->KeepAliveInterval();
+      int idle = interval * 3;
+      int cnt = config_->KeepAliveCnt();
+      /* we use tcp keepalive to close broken socket connection */
+      SetKeepAlive(remote_fd, idle, interval, cnt);
       if (loop_->epoller->AttachSession(sess)) {
         // std::cout << "fd=" << sess->fd << " added into eventloop watch\n";
         sess->watched = true;

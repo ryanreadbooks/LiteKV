@@ -50,8 +50,9 @@ int main(int argc, char **argv) {
   engine.RestoreFromAppendableFile(&loop, history);
   auto spent = GetCurrentMs() - begin;
   std::cout << "DB loaded in " << spent << " ms.. " << std::endl;
-  Server server(&loop, &engine, configs.GetIp(), configs.GetPort());
-  std::cout << "The server is now ready to accept connections on port " << configs.GetPort() << std::endl;
+  Server server(&loop, &engine, &configs, configs.GetIp(), configs.GetPort());
+  std::cout << "The server is now ready to accept connections on "
+            << configs.GetIp() << ':' << configs.GetPort() << std::endl;
 
   loop.Loop();
 
