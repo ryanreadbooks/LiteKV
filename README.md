@@ -20,13 +20,17 @@ make
 * list
 * hash
 
+### Supported modes
+* Pub/Sub
+
+
 ### Supported Commands
 
 <table>
   <tr>
   </tr>     
   <tr>         
-    <th></th>
+    <th align="center">Type</th>
     <th align="center">Command</th>
     <th align="center">Usage</th>
     <th align="center">Description</th>     
@@ -229,6 +233,28 @@ make
     <td align="center"> Return the number of pairs in hash at key </td>
   </tr>  
 
+  <tr>
+    <td rowspan="4" align="center"> <b>Pub/Sub</b> </td>
+  </tr>
+
+  <tr>
+    <td align="center"> publish </td>
+    <td align="center"> publish chan msg </td>
+    <td align="center"> Publish a message to specific channel </td>
+  </tr> 
+
+  <tr>
+    <td align="center"> subscribe </td>
+    <td align="center"> subscribe chan1 [chan2...] </td>
+    <td align="center"> Subscribe to specific channels </td>
+  </tr> 
+
+  <tr>
+    <td align="center"> unsubscribe </td>
+    <td align="center"> unsubscribe chan1 [chan2...] </td>
+    <td align="center"> Unsubscribe from specific channels </td>
+  </tr>
+
 </table>
 
 
@@ -291,7 +317,7 @@ Compiler:  gcc 5.4.0
   * transaction
   * make it distributed
   * master-slave mode
-  * pub/sub mode
+  * ~~pub/sub mode~~
   * sentinel
   * use connection pool
 
