@@ -5,14 +5,17 @@
 
 #include "core.h"
 
+/* maximum time in lru eviction loop, unit ms */
+#define LRU_EVICTION_TIME_LIMIT_MS 25
+
 static std::mt19937_64 sRandEngine(std::time(nullptr));
 
 static int RandIntValue(int from, int to) {
-  return std::uniform_int_distribution<int>(from, to)(sRandEngine);
+ return std::uniform_int_distribution<int>(from, to)(sRandEngine);
 }
 
 static double RandDoubleValue(double from, double to) {
-  return std::uniform_real_distribution<double>(from, to)(sRandEngine);
+ return std::uniform_real_distribution<double>(from, to)(sRandEngine);
 }
 
 /* Get bucket according to key and lock the bucket */
@@ -108,7 +111,6 @@ std::vector<std::string> KVContainer::KeyEviction(int policy, size_t n) {
     return {};
   }
   if (policy == EVICTION_POLICY_LRU) {
-    std::cout << "EVICTION_POLICY_LRU\n";
 #ifdef TCMALLOC_FOUND
     MallocExtension::instance()->ReleaseFreeMemory();
 #endif
@@ -142,13 +144,16 @@ std::vector<std::string> KVContainer::KeyEvictionRandom(size_t num) {
 }
 
 std::vector<std::string> KVContainer::KeyEvictionLru(size_t num) {
-  /* TODO lru eviction  */
-  /* LRU eviction policy: discard num keys according to approximate LRU
-  */
+  /* LRU eviction policy: discard num keys according to approximate LRU */
   size_t n_deleted = 0;
   std::vector<std::string> deleted_keys;
+  auto start = GetCurrentMs();
   while (!keys_pool_.empty() && n_deleted < num) {
     KeyEvictionLruHelper(deleted_keys);
+    /* avoid massive time consumption thus set max time limit */
+    if (GetCurrentMs() - start > LRU_EVICTION_TIME_LIMIT_MS) {
+      break;
+    }
   }
   return deleted_keys;
 }

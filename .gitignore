@@ -6,3 +6,4 @@ cmake-build-debug
 benchmark/bench/multi-threads*
 benchmark/bench/single-thread*
 .VSCodeCounter
+issues
