@@ -156,7 +156,7 @@ void AppendableFile::Switch() {
   std::swap(cur_caches_, backup_caches_);
 }
 
-/* TODO : NOT FULLY TESTED YET. */
+/* TODO : NOT FULLY TESTED YET. NOT ALL COMMANDS SUPPORTED NOW */
 void AppendableFile::RemoveRedundancy(const std::string &source_file) {
   /* refactor dumpfile, remove those redundant commands,
    * such as set one key, and then del this key, in this case, we do not need to set this key at all;

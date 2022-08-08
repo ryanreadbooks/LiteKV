@@ -173,12 +173,12 @@ void Server::ReadProc(Session *session, bool &closed) {
     sOptionalHandlerParamsObj.server = this;
     std::string handle_result = engine_->HandleCommand(loop_, cache, true, session, &sOptionalHandlerParamsObj);
     session->write_buf.Append(handle_result);
-    session->SetWrite();
     // n_response++;
-    loop_->epoller->ModifySession(session); /* FIXME no need to modify session every time */
     /* clear cache when one command is fully parsed */
     cache.Clear();
   }
+  session->SetWrite();
+  loop_->epoller->ModifySession(session);
   /* if err occurs, then we assume the command syntax is invalid */
   if (err) {
     AuxiliaryReadProcParseErrorHandling(session);

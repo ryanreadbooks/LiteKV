@@ -91,6 +91,13 @@ void Config::Init(std::unordered_map<std::string, std::string> &configs) {
         port_ = CONFIG_DEFAULT_PORT;
       }
       DISPLAY_CONFIG(key, port_);
+    } else if (key == "appendonly") {
+      int b = 0;
+      if (!CanConvertToInt32(value, b)) {
+        DISPLAY_INVALID_WARN(key, CONFIG_DEFAULT_APPENDONLY_ENABLED);
+      }
+      appendonly_enabled_ = b != 0;
+      DISPLAY_CONFIG(key, appendonly_enabled_);
     } else if (key == "dumpfile") {
       dumpfile_ = value;
       DISPLAY_CONFIG(key, dumpfile_);
@@ -143,7 +150,7 @@ void Config::Init(std::unordered_map<std::string, std::string> &configs) {
       }
       keepalive_interval_ = interval;
       DISPLAY_CONFIG(key, keepalive_interval_);
-    } else if (key == "keealive-cnt") {
+    } else if (key == "keepalive-cnt") {
       int cnt = CONFIG_DEFAULT_KEEPALIVE_CNT;
       if (!CanConvertToInt32(value, cnt)) {
         DISPLAY_INVALID_WARN(key, CONFIG_DEFAULT_KEEPALIVE_CNT);

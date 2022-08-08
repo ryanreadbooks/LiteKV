@@ -61,7 +61,7 @@ public:
    * @param sync Synchronize this command to file or not.
    * @return Reply string.
    */
-  std::string HandleCommand(EventLoop *loop, const CommandCache &cmds, bool sync = true, Session* sess = nullptr, OptionalHandlerParams* options = nullptr);
+  std::string HandleCommand(EventLoop *loop, CommandCache &cmds, bool sync = true, Session* sess = nullptr, OptionalHandlerParams* options = nullptr);
 
   /**
    * Check if operation code is valid.

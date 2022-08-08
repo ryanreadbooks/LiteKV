@@ -44,10 +44,12 @@ int main(int argc, char **argv) {
   Engine engine(&container, &configs);
   std::string location = configs.GetDumpFilename();
   size_t cache_size = configs.GetDumpCacheSize();
-  history = new AppendableFile(location, cache_size);
+  if (configs.AppendonlyEnabled()) {
+    history = new AppendableFile(location, cache_size);
+    engine.RestoreFromAppendableFile(&loop, history);
+  }
 
   auto begin = GetCurrentMs();
-  engine.RestoreFromAppendableFile(&loop, history);
   auto spent = GetCurrentMs() - begin;
   std::cout << "DB loaded in " << spent << " ms.. " << std::endl;
   Server server(&loop, &engine, &configs, configs.GetIp(), configs.GetPort());
