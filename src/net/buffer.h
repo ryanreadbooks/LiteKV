@@ -87,6 +87,8 @@ public:
 
   long ReadLongFrom(size_t index, size_t& step);
 
+  void ToFile(const std::string& file);
+
 private:
   void EnsureBytesForWrite(size_t n);
 

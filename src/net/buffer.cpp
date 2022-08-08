@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <fstream>
 #include "buffer.h"
 
 void Buffer::Append(const std::string &value) {
@@ -32,7 +33,7 @@ void Buffer::EnsureBytesForWrite(size_t n) {
       std::vector<char> new_place(p_writer_ + n + 2, 0);
       size_t r = ReadableBytes(); /* log original readable size to update p_writer_ after memcpy */
       memcpy(new_place.data(), BeginRead(), r); /* discard prependable */
-      data_ = new_place;
+      data_ = new_place;  /* FIXME: potential memory cost due to vector<>::operator=() does copy old into new space */
       p_reader_ = 0;
       p_writer_ = r;
     }
@@ -158,4 +159,10 @@ long Buffer::ReadLongFrom(size_t index, size_t &step) {
   long num = strtoll(BeginRead() + index, &p_end, 10);
   step = p_end - (BeginRead() + index);
   return num;
+}
+
+void Buffer::ToFile(const std::string& file) {
+  // flush readable bytes to file
+  std::ofstream fs(file, std::ios::app);
+  fs.write(BeginRead(), ReadableBytes());
 }

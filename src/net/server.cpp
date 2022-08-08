@@ -159,8 +159,7 @@ void Server::ReadProc(Session *session, bool &closed) {
       }
     }
     sessions_.erase(session->name);
-    std::cout << "Client-" << session->fd << " exit, now close connection...\n";
-    // std::cout << "Total bytes received = " << n_total_bytes_recv << std::endl;
+    // std::cout << "Client-" << session->fd << " exit, now close connection...\n";
     closed = true;
     return;
   }
@@ -202,21 +201,26 @@ void Server::WriteProc(Session *session, bool &closed) {
   }
   // std::cout << "Doing write process, write buffer is => " << buffer.ReadableAsString() << std::endl;
   /* ensure all data has been sent, then unregister EPOLLOUT to this fd */
-  size_t readable_bytes = buffer.ReadableBytes();
+  size_t readable_bytes = buffer.ReadableBytes(); /* the number of bytes ready to send */
   int nbytes = WriteFromBuf(fd, static_cast<const char *>(buffer.BeginRead()), readable_bytes);
-  // std::cout << "Send " << nbytes << " bytes response to client, readable_bytes = " << readable_bytes <<"\n";
-  /* FIXME optimize */
-  if ((size_t) nbytes == readable_bytes) {
-    session->SetRead();
-    loop_->epoller->ModifySession(session);
-    buffer.Reset();
+  if ((size_t) nbytes > 0) {
+    if ((size_t) nbytes == readable_bytes) {
+      /* all bytes have been sent. no need to send in the recent future.*/
+      session->SetRead();
+      loop_->epoller->ModifySession(session);
+      /* clear buffer */
+      buffer.Reset();
+    } else {
+      /* consume nbytes in buffer */
+      buffer.ReaderIdxForward(nbytes);
+    }
   }
   if (nbytes == 0 && buffer.ReadableBytes() != 0) {
     session->watched = false;
     buffer.Reset();
     close(fd);
+    // std::cout << "[Server::WriteProc] Client exit, now close connection from " << session->name << '\n';
     sessions_.erase(session->name);
-    std::cout << "Client exit, now close connection...\n";
     closed = true;
   }
 }
