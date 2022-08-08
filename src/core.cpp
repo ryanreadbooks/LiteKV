@@ -684,6 +684,7 @@ DictVal KVContainer::HashGetValue(const Key &key, const DictKey &field, int &err
   try {
     return RetrievePtr(key, Dict)->At(field);
   } catch (const std::out_of_range &ex) {
+    errcode = kKeyNotFoundCode;
     return DictVal();
   }
 }

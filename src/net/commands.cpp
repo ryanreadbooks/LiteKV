@@ -133,7 +133,11 @@ static void PackStringValueIntoStream(std::stringstream& ss, const std::string& 
 }
 
 static void PackStringValueIntoStream(std::stringstream& ss, const DynamicString& value) {
-  ss << kStrValPrefix << value.Length() << kCRLF << value << kCRLF;
+  if (!value.Null()) {
+    ss << kStrValPrefix << value.Length() << kCRLF << value << kCRLF;
+  } else {
+    ss << kNilMsg;
+  }
 }
 
 static std::string PackStringMsgReply(const std::string &msg) {
@@ -798,15 +802,14 @@ std::string HGetCommand(__PARAMETERS_LIST) {
   const std::string &key = cmds.argv[1];
   int errcode;
   Key k = Key(key);
-  if (cmds.argv.size() == 3) {
+  if (cmds.argv.size() == 3) {  /* only get one field */
     DictVal val = holder->HashGetValue(k, DictKey(cmds.argv[2]), errcode);
     if (errcode == kOkCode) {
       return PackStringValueReply(val);
     }
     IfKeyNotFoundReturn(errcode);
     IfWrongTypeReturn(errcode);
-  }
-  else {
+  } else {  /* get multiple fields */
     std::vector<std::string> fields(cmds.argv.begin() + 2, cmds.argv.end());
     std::vector<DictVal> values = holder->HashGetValue(k, fields, errcode);
     /* pack into array and return */
