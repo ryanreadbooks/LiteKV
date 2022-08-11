@@ -28,12 +28,10 @@ void Buffer::EnsureBytesForWrite(size_t n) {
       MoveReadableToHead();
     } else {
       /* need to alloc more space */
-      /* !attention */
-      // data_.resize(p_writer_ + n + 2);
       std::vector<char> new_place(p_writer_ + n + 2, 0);
       size_t r = ReadableBytes(); /* log original readable size to update p_writer_ after memcpy */
       memcpy(new_place.data(), BeginRead(), r); /* discard prependable */
-      data_ = new_place;  /* FIXME: potential memory cost due to vector<>::operator=() does copy old into new space */
+      data_.swap(new_place);  /* swap new and old space to save memory */
       p_reader_ = 0;
       p_writer_ = r;
     }
