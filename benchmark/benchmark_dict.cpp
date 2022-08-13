@@ -31,7 +31,7 @@ int main() {
     for (int j = 0; j < kEntry; ++j) {
       string field = to_string(rand());
       string val = to_string(rand());
-      engine.HashSetKV(to_string(i), field, val, errcode);
+      engine.HashUpdateKV(to_string(i), field, val, errcode);
     }
   }
 

@@ -1,14 +1,20 @@
 #ifndef __REHASHABLE_H__
 #define __REHASHABLE_H__
 
+#include <type_traits>
 #include "hash.h"
 
 constexpr static int kGrowFactor = 2;
 
-// TODO(220813): ensure ImplType must be children of HashStructBase
-template <typename ImplType, typename EntryType>
+/* class describing the rehashing behaviour in hashtable or hashset */
+template <typename ImplType>
 class Rehashable {
+  static_assert(std::is_base_of<HashStructBase<typename ImplType::entry_type>, ImplType>::value,
+                "ImplType must be children of HashStructBase<EntryType>");
+
 public:
+  typedef typename ImplType::entry_type EntryType;
+
   explicit Rehashable(double max_load_factor = 1.0)
       : cur_ht_(new ImplType), max_load_factor_(max_load_factor) {}
 
@@ -24,25 +30,11 @@ public:
     }
   }
 
-  /* api */
-  // dict特有
-  //  int Update(const HEntryKey &key, const HEntryVal &val);
-
-  // dict特有
-  //  int Update(const std::string &key, const std::string &val) {
-  //    return Update(HEntryKey(key), HEntryVal(val));
-  //  }
-
-  // 保留
   int Erase(const HEntryKey &key);
 
-  // 保留
   int Erase(const std::string &key) { return Erase(HEntryKey(key)); }
 
   std::vector<HEntryKey> AllKeys() const;
-
-  // dict特有
-  //  std::vector<HEntryVal> AllValues() const;
 
   bool CheckExists(const HEntryKey &key);
 
@@ -56,12 +48,6 @@ public:
   }
 
   std::vector<EntryType *> AllEntries() const;
-
-  //  HEntryVal &At(const HEntryKey &key);
-
-  //  HEntryVal &At(const std::string &key) {
-  //    return At(HEntryKey(key));
-  //  }
 
 protected:
   bool PerformRehash();
@@ -87,8 +73,8 @@ protected:
   double max_load_factor_ = 1.0;
 };
 
-template <typename ImplType, typename EntryType>
-int Rehashable<ImplType, EntryType>::Erase(const HEntryKey &key) {
+template <typename ImplType>
+int Rehashable<ImplType>::Erase(const HEntryKey &key) {
   if (CheckNeedRehash()) {
     PerformRehash();
   }
@@ -99,8 +85,8 @@ int Rehashable<ImplType, EntryType>::Erase(const HEntryKey &key) {
 
 }
 
-template <typename ImplType, typename EntryType>
-std::vector<HEntryKey> Rehashable<ImplType, EntryType>::AllKeys() const {
+template <typename ImplType>
+std::vector<HEntryKey> Rehashable<ImplType>::AllKeys() const {
   if (Count() == 0) return {};
   std::vector<HEntryKey> keys;
   if (cur_ht_ != nullptr) {
@@ -114,16 +100,16 @@ std::vector<HEntryKey> Rehashable<ImplType, EntryType>::AllKeys() const {
   return keys;
 }
 
-template <typename ImplType, typename EntryType>
-bool Rehashable<ImplType, EntryType>::CheckExists(const HEntryKey &key) {
+template <typename ImplType>
+bool Rehashable<ImplType>::CheckExists(const HEntryKey &key) {
   if (cur_ht_ && cur_ht_->CheckExists(key)) {
     return true;
   }
   return backup_ht_ && backup_ht_->CheckExists(key);
 }
 
-template <typename ImplType, typename EntryType>
-std::vector<EntryType *> Rehashable<ImplType, EntryType>::AllEntries() const {
+template <typename ImplType>
+std::vector<typename Rehashable<ImplType>::EntryType *> Rehashable<ImplType>::AllEntries() const {
   if (Count() == 0) return {};
   std::vector<EntryType *> entries;
   if (cur_ht_ != nullptr) {
@@ -137,8 +123,8 @@ std::vector<EntryType *> Rehashable<ImplType, EntryType>::AllEntries() const {
   return entries;
 }
 
-template <typename ImplType, typename EntryType>
-bool Rehashable<ImplType, EntryType>::PerformRehash() {
+template <typename ImplType>
+bool Rehashable<ImplType>::PerformRehash() {
   /* rehashing implementation */
   if (backup_ht_ == nullptr) {
     size_t new_slot_size = cur_ht_->slot_size_ * kGrowFactor;
@@ -169,8 +155,8 @@ bool Rehashable<ImplType, EntryType>::PerformRehash() {
   return false;
 }
 
-template <typename ImplType, typename EntryType>
-void Rehashable<ImplType, EntryType>::RehashMoveSlots(int n) {
+template <typename ImplType>
+void Rehashable<ImplType>::RehashMoveSlots(int n) {
   do {
     if (PerformRehash()) {
       break;

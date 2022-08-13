@@ -35,7 +35,7 @@ int main() {
 
   KVContainer engine;
   int errcode;
-  engine.HashSetKV("ht1", "k1", "v1", errcode);
+  engine.HashUpdateKV("ht1", "k1", "v1", errcode);
   auto v1 = engine.HashGetValue("ht1", "k1", errcode);
   if (errcode == kOkCode) {
     cout << v1 << endl;
@@ -49,21 +49,21 @@ int main() {
   }
 
   for (int i = 0; i < n; ++i) {
-    engine.HashSetKV(to_string(rand()), to_string(rand()), to_string(rand()), errcode);
+    engine.HashUpdateKV(to_string(rand()), to_string(rand()), to_string(rand()), errcode);
   }
 
   engine.SetInt("int1", 5620);
-  if (!engine.HashSetKV("int1", "k1", "5620k", errcode)) {
+  if (!engine.HashUpdateKV("int1", "k1", "5620k", errcode)) {
     cout << errcode << endl;
   }
 
   engine.LeftPush("l1", {"1", "2", "3", "4", "5"}, errcode);
-  if (!engine.HashSetKV("l1", "k1", "5620k", errcode)) {
+  if (!engine.HashUpdateKV("l1", "k1", "5620k", errcode)) {
     cout << errcode << endl;
   }
 
   for (int i = 0; i < 5; i++) {
-    engine.HashSetKV("kv1", to_string(i), to_string(i), errcode);
+    engine.HashUpdateKV("kv1", to_string(i), to_string(i), errcode);
   }
   showHashTable("kv1",
                 engine.HashGetAllFields("kv1", errcode),
@@ -75,7 +75,7 @@ int main() {
     string field = to_string(val);
     string value = to_string(val * 2);
     cout << "setting " << field << " to " << value << endl;
-    engine.HashSetKV("kv1", field, value, errcode);
+    engine.HashUpdateKV("kv1", field, value, errcode);
   }
 
   showHashTable("kv1",
@@ -83,8 +83,8 @@ int main() {
                 engine.HashGetAllValues("kv1", errcode));
 
   cout << "adding field f1, f2 to kv1... \n";
-  engine.HashSetKV("kv1", "f1", "v1", errcode);
-  engine.HashSetKV("kv1", "f2", "v2", errcode);
+  engine.HashUpdateKV("kv1", "f1", "v1", errcode);
+  engine.HashUpdateKV("kv1", "f2", "v2", errcode);
   cout << "kv1 len = " << engine.HashLen("kv1", errcode);
 
   showHashTable("kv1",
@@ -112,7 +112,7 @@ int main() {
   vector<string> fields {"name", "age", "ip", "address"};
   vector<string> values {"lily", "20", "127.0.0.1", "earth"};
   auto key = Key("person");
-  engine.HashSetKV(key, fields, values, errcode);
+  engine.HashUpdateKV(key, fields, values, errcode);
 
   for (const auto& val : engine.HashGetValue(key, fields, errcode)) {
     if (val.Null()) {

@@ -7,11 +7,9 @@ set(SRC
     src/core.cpp
     src/dlist.cpp
     src/str.cpp
-    src/hash.cpp
+    src/valueobject.cpp
     src/hashdict.cpp
     src/hashset.cpp
-    src/rehashable.cpp
-    src/valueobject.cpp
     src/persistence.cpp
     src/config.cpp
     src/net/addr.cpp
@@ -42,10 +40,12 @@ endif()
 add_executable_and_link(test_core "test/test_core.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_core2 "test/test_core2.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_core3 "test/test_core3.cpp" "${SRC}" "${LIBS}")
+add_executable_and_link(test_core4 "test/test_core4.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_dlist "test/test_dlist.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_dlist2 "test/test_dlist2.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_dynamic_string "test/test_dynamic_string.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_dict "test/test_dict.cpp" "${SRC}" "${LIBS}")
+add_executable_and_link(test_hashset "test/test_hashset.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_static_string "test/test_static_string.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_time_event "test/test_time_event.cpp" "${SRC}" "${LIBS}")
 add_executable_and_link(test_appendable_file "test/test_appendable_file.cpp" "${SRC}" "${LIBS}")

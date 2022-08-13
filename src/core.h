@@ -10,6 +10,8 @@
 
 #include "str.h"
 #include "hashdict.h"
+#include "dlist.h"
+#include "hashset.h"
 #include "valueobject.h"
 
 static constexpr int EVICTION_POLICY_RANDOM = 0;
@@ -239,16 +241,16 @@ public:
     return ListSetItemAtIndex(Key(key), index, val, errcode);
   }
 
-  /******************** Hashtable operation ********************/
+  /******************** HashDict operation ********************/
 
-  bool HashSetKV(const Key &key, const HEntryKey &field, const HEntryVal &value, int &errcode);
+  bool HashUpdateKV(const Key &key, const HEntryKey &field, const HEntryVal &value, int &errcode);
 
-  bool HashSetKV(const std::string &key, const std::string &field, const std::string &value, int &errcode) {
-    return HashSetKV(Key(key), HEntryKey(field), HEntryVal(value), errcode);
+  bool HashUpdateKV(const std::string &key, const std::string &field, const std::string &value, int &errcode) {
+    return HashUpdateKV(Key(key), HEntryKey(field), HEntryVal(value), errcode);
   }
 
-  int HashSetKV(const Key &key, const std::vector<std::string> &fields,
-                const std::vector<std::string> &values, int &errcode);
+  int HashUpdateKV(const Key &key, const std::vector<std::string> &fields,
+                   const std::vector<std::string> &values, int &errcode);
 
   HEntryVal HashGetValue(const Key &key, const HEntryKey &field, int &errcode);
 
@@ -294,6 +296,53 @@ public:
 
   size_t HashLen(const std::string &key, int &errcode) {
     return HashLen(Key(key), errcode);
+  }
+
+  /******************** HashSet operation ********************/
+
+  bool SetAddItem(const Key &key, const HEntryKey &member, int &errcode);
+
+  bool SetAddItem(const std::string &key, const std::string &member, int &errcode) {
+    return SetAddItem(Key(key), HEntryKey(member), errcode);
+  }
+
+  int SetAddItem(const Key &key, const std::vector<std::string> &members, int &errcode);
+
+  int SetAddItem(const std::string &key, const std::vector<std::string> &members, int &errcode) {
+    return SetAddItem(Key(key), members, errcode);
+  }
+
+  bool SetIsMember(const Key &key, const HEntryKey &member, int &errcode);
+
+  bool SetIsMember(const std::string &key, const std::string &member, int &errcode) {
+    return SetIsMember(Key(key), HEntryKey(member), errcode);
+  }
+
+  std::vector<int> SetMIsMember(const Key &key, const std::vector<std::string> &members,
+                                int &errcode);
+
+  std::vector<int> SetMIsMember(const std::string &key, const std::vector<std::string> &members,
+                                int &errcode) {
+    return SetMIsMember(Key(key), members, errcode);
+  }
+
+  int SetRemoveMembers(const Key &key, const std::vector<std::string> &members, int &errcode);
+
+  bool SetRemoveMembers(const std::string &key, const std::vector<std::string> &members,
+                        int &errcode) {
+    return SetRemoveMembers(Key(key), members, errcode);
+  }
+
+  std::vector<HEntryKey> SetGetMembers(const Key &key, int &errcode);
+
+  std::vector<HEntryKey> SetGetMembers(const std::string &key, int &errcode) {
+    return SetGetMembers(Key(key), errcode);
+  }
+
+  size_t SetGetMemberCount(const Key &key, int &errcode);
+
+  size_t SetGetMemberCount(const std::string &key, int &errcode) {
+    return SetGetMemberCount(Key(key), errcode);
   }
 
 private:

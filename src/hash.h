@@ -1,6 +1,7 @@
 #ifndef __HASH_H__
 #define __HASH_H__
 
+#include <type_traits>
 #include <vector>
 #include "str.h"
 
@@ -12,26 +13,51 @@ typedef DynamicString *HEntryValPtr;
 #define UNDEFINED -1
 #define NEW_ADDED 0
 #define UPDATED 1
+#define EXISTED 2
 #define ERASED 1
 #define NOT_ERASED 0
 
-template<typename, typename > class Rehashable;
+template <typename>
+class Rehashable;
 class HashDict;
+class HashSet;
 
-// TODO must ensure EntryType has 'key' and 'next' member
+#define has_member(s, same_type)                                                       \
+  template <typename T, typename R = void>                                             \
+  struct has_member_##s {                                                              \
+    template <typename T_>                                                             \
+    static auto check(T_) -> typename std::decay<decltype(T_::s)>::type;               \
+    static void check(...);                                                            \
+    using type = decltype(check(std::declval<T>()));                                   \
+    enum {                                                                             \
+      value = same_type ? !std::is_void<type>::value && std::is_same<type, T *>::value \
+                        : !std::is_void<type>::value && std::is_same<type, R>::value   \
+    };                                                                                 \
+  }
+
+/* static check EntryType */
+has_member(key, false);
+has_member(next, true);
+
 template <typename EntryType>
 class HashStructBase {
-public:
-  template<typename, typename > friend class Rehashable;
+  template <typename> friend class Rehashable;
   friend class HashDict;
+  friend class HashSet;
 
+  static_assert(has_member_key<EntryType, HEntryKey*>::value,
+                "EntryType must have a `key` member of type HEntryKey*");
+  static_assert(has_member_next<EntryType>::value,
+                "EntryType must have a `next` member of type EntryType*");
+
+public:
   explicit HashStructBase(unsigned long init_size = 16) : slot_size_(init_size), count_(0) {
     /* allocate array space */
-    table_ = new(std::nothrow) EntryType *[init_size];  /* all pointers */
+    table_ = new (std::nothrow) EntryType *[init_size]; /* all pointers */
     if (table_ == nullptr) {
       std::cerr << "unable to allocate " << (sizeof(EntryType *) * init_size)
-                << " bytes memory for hashtable\n";
-      abort();  /* Fixme(220813): maybe we should not abort when table can not be created */
+                << " bytes memory for HashStructBase\n";
+      abort(); /* Fixme(220813): maybe we should not abort when table can not be created */
     }
     memset(table_, 0, sizeof(EntryType *) * init_size);
   }
@@ -50,41 +76,33 @@ public:
           table_[i] = nullptr;
         }
       }
-      delete[] table_;  /* free the underneath array from heap */
+      delete[] table_; /* free the underneath array from heap */
       table_ = nullptr;
     }
   }
 
   int EraseKey(const HEntryKey &key);
 
-  int EraseKey(const std::string &key) {
-    return EraseKey(HEntryKey(key));
-  }
+  int EraseKey(const std::string &key) { return EraseKey(HEntryKey(key)); }
 
   std::vector<HEntryKey> AllKeys() const;
 
   bool CheckExists(const HEntryKey &key) const;
 
-  bool CheckExists(const std::string &key) const {
-    return CheckExists(HEntryKey(key));
-  }
+  bool CheckExists(const std::string &key) const { return CheckExists(HEntryKey(key)); }
 
   inline size_t Count() const { return count_; }
 
   std::vector<EntryType *> AllEntries() const;
 
-  inline double LoadFactor() const {
-    return ((double) count_) / ((double) slot_size_);
-  }
+  inline double LoadFactor() const { return ((double)count_) / ((double)slot_size_); }
 
   inline unsigned long SlotCount() const { return slot_size_; }
 
 protected:
-
   inline unsigned long CalculateSlotIndex(const HEntryKey &key) const {
     return key.Hash() % slot_size_;
   }
-
 
   EntryType *FindEntry(const HEntryKey &key) const;
 
@@ -95,7 +113,7 @@ protected:
   bool RehashDone() const { return rehashing_idx_ == -1; }
 
   inline bool EnsureAllSlotsEmpty() const {
-    for (size_t i = 0 ; i < slot_size_; ++i) {
+    for (size_t i = 0; i < slot_size_; ++i) {
       if (table_[i] != nullptr) {
         return false;
       }
@@ -116,7 +134,8 @@ protected:
 
 template <typename EntryType>
 int HashStructBase<EntryType>::EraseKey(const HEntryKey &key) {
-/* return the number of deleted key, only 0 (key not found) and 1 (key found and deleted) are possible */
+  /* return the number of deleted key, only 0 (key not found) and 1 (key found and deleted) are
+   * possible */
   uint64_t slot_idx = CalculateSlotIndex(key);
   EntryType *head = table_[slot_idx];
   if (head == nullptr) return 0;
@@ -125,7 +144,7 @@ int HashStructBase<EntryType>::EraseKey(const HEntryKey &key) {
     prev = head;
     head = head->next;
   }
-  if (head != nullptr) {  /* key found */
+  if (head != nullptr) { /* key found */
     if (prev == nullptr) {
       table_[slot_idx] = head->next;
     } else {

@@ -1,9 +1,10 @@
 #include "valueobject.h"
 
-ValueObject* ConstructIntObj(int64_t intval) {
-  ValueObject *obj = new(std::nothrow) ValueObject;
-  if (obj == nullptr)
-    return nullptr;
+// FIXME: use macro to remove code redundancy
+
+ValueObject *ConstructIntObj(int64_t intval) {
+  ValueObject *obj = new (std::nothrow) ValueObject;
+  if (obj == nullptr) return nullptr;
   obj->type = OBJECT_INT;
   obj->lv_time = GetCurrentMs();
   /* cast int64_t(8 bytes) to void* pointer(8 bytes) */
@@ -15,15 +16,14 @@ ValueObjectPtr ConstructIntObjPtr(int64_t intval) {
   void *data_ptr = reinterpret_cast<void *>(intval);
   try {
     return std::make_shared<ValueObject>(OBJECT_INT, data_ptr);
-  } catch (const std::bad_alloc& ex) {
+  } catch (const std::bad_alloc &ex) {
     return ValueObjectPtr();
   }
 }
 
-ValueObject* ConstructStrObj(const std::string& strval) {
-  ValueObject *obj = new(std::nothrow) ValueObject;
-  if (obj == nullptr)
-    return nullptr;
+ValueObject *ConstructStrObj(const std::string &strval) {
+  ValueObject *obj = new (std::nothrow) ValueObject;
+  if (obj == nullptr) return nullptr;
   obj->type = OBJECT_STRING;
   obj->lv_time = GetCurrentMs();
   /* use dynamic string */
@@ -33,19 +33,17 @@ ValueObject* ConstructStrObj(const std::string& strval) {
   return obj;
 }
 
-ValueObjectPtr ConstructStrObjPtr(const std::string& strval) {
+ValueObjectPtr ConstructStrObjPtr(const std::string &strval) {
   try {
     DynamicString *ds_ptr = new DynamicString(strval);
-    return std::make_shared<ValueObject>(OBJECT_STRING, (void*)ds_ptr);
-  }
-  catch (const std::bad_alloc &ex) {
+    return std::make_shared<ValueObject>(OBJECT_STRING, (void *)ds_ptr);
+  } catch (const std::bad_alloc &ex) {
     return ValueObjectPtr();
   }
 }
 
-
 ValueObject *ConstructDListObj() {
-  ValueObject *obj = new(std::nothrow) ValueObject;
+  ValueObject *obj = new (std::nothrow) ValueObject;
   if (obj == nullptr) {
     return nullptr;
   }
@@ -68,13 +66,13 @@ ValueObjectPtr ConstructDListObjPtr() {
 }
 
 ValueObject *ConstructHashObj() {
-  ValueObject *obj = new(std::nothrow) ValueObject;
+  ValueObject *obj = new (std::nothrow) ValueObject;
   if (obj == nullptr) {
     return nullptr;
   }
   obj->type = OBJECT_HASH;
   obj->lv_time = GetCurrentMs();
-  HashDict* p_dict = new (std::nothrow) HashDict;
+  HashDict *p_dict = new (std::nothrow) HashDict;
   if (p_dict == nullptr) return nullptr;
   obj->ptr = p_dict;
   return obj;
@@ -89,3 +87,24 @@ ValueObjectPtr ConstructHashObjPtr() {
   }
 }
 
+ValueObject *ConstructSetObj() {
+  ValueObject *obj = new (std::nothrow) ValueObject;
+  if (obj == nullptr) {
+    return nullptr;
+  }
+  obj->type = OBJECT_SET;
+  obj->lv_time = GetCurrentMs();
+  HashSet *p_set = new (std::nothrow) HashSet;
+  if (p_set == nullptr) return nullptr;
+  obj->ptr = p_set;
+  return obj;
+}
+
+ValueObjectPtr ConstructSetObjPtr() {
+  try {
+    HashSet *set_ptr = new HashSet;
+    return std::make_shared<ValueObject>(OBJECT_SET, (void *)set_ptr);
+  } catch (const std::bad_alloc &ex) {
+    return ValueObjectPtr();
+  }
+}

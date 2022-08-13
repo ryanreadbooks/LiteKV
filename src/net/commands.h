@@ -170,6 +170,21 @@ std::string HValsCommand(PARAMETERS_LIST);
 
 std::string HLenCommand(PARAMETERS_LIST);
 
+/* set commands */
+std::string SAddCommand(PARAMETERS_LIST);
+
+std::string SIsMemberCommand(PARAMETERS_LIST);
+
+std::string SMIsMemberCommand(PARAMETERS_LIST);
+
+std::string SMembersCommand(PARAMETERS_LIST);
+
+std::string SRemCommand(PARAMETERS_LIST);
+
+std::string SCardCommand(PARAMETERS_LIST);
+
+std::string SPopCommand(PARAMETERS_LIST);
+
 /*　pub/sub commands */
 std::string PubSubPublishCommand(PARAMETERS_LIST);
 

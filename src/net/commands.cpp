@@ -43,7 +43,7 @@ std::unordered_map<std::string, CommandHandler> Engine::sOpCommandMap = {
     {"lrem",      LRemCommand},   /* TODO not supported, remove element from list on given key */
     {"lsetindex", LSetCommand},   /* set element from list at index on given key  */
     {"lindex",    LIndexCommand}, /* get element in list at index on given key */
-    /* hashtable operation */
+    /* hash operation */
     {"hset",      HSetCommand},   /* set field in the hash on given key to value. */
     {"hget",      HGetCommand},   /* return the value associated with field in the hash on given key */
     {"hdel",      HDelCommand},   /* delete specified fields in the hash on given key */
@@ -52,6 +52,14 @@ std::unordered_map<std::string, CommandHandler> Engine::sOpCommandMap = {
     {"hkeys",     HKeysCommand},  /* get all fields in the hash on given key */
     {"hvals",     HValsCommand},  /* get all values in the hash on given key */
     {"hlen",      HLenCommand},   /* get number of field-value pairs in the hash on given key */
+    /* set operation */
+    {"sadd",        SAddCommand},         /* add members into the set */
+    {"sismember",   SIsMemberCommand},    /* check a member is inside set */
+    {"smismember",  SMIsMemberCommand},   /* check multiple members are inside set */
+    {"smembers",    SMembersCommand},     /* get all members inside set */
+    {"srem",        SRemCommand},         /* remove the specified member inside set */
+    {"scard",       SCardCommand},        /* get the number of members inside set */
+    {"spop",        SPopCommand},         /* TODO not supported yet, pop a member from set */
     /* pub/sub operations */
     {"publish",   PubSubPublishCommand},        /* publish a message to specific channel */
     {"subscribe", PubSubSubscribeCommand},      /* subscribe to specific channels */
@@ -60,6 +68,13 @@ std::unordered_map<std::string, CommandHandler> Engine::sOpCommandMap = {
 
 static std::unordered_map<std::string, TimeEvent *> sExpiresMap;
 static int sEvictPolicy = EVICTION_POLICY_RANDOM;
+
+#define IfFailReturn(errcode, retval) \
+  do {  \
+    if (errcode == kFailCode) {\
+      return retval;\
+    }\
+  } while (0)
 
 #define IfWrongTypeReturn(errcode)                                             \
   do {                                                                         \
@@ -159,21 +174,6 @@ static std::string PackArrayMsg(const std::vector<DynamicString> &array) {
     PackStringValueIntoStream(arr_ss, value);
   }
   return arr_ss.str();
-
-  // std::string ans;
-  // size_t len = array.size();
-  // size_t elem_length = 1;
-  // if (len != 0) {
-  //   elem_length = array[0].Length();
-  // }
-  // ans.reserve(len * elem_length * 2);
-  // ans += kArrayPrefix;
-  // ans += std::to_string(len);
-  // ans += kCRLF;
-  // for (const auto& value : array) {
-  //   ans += PackStringValueReply(value);
-  // }
-  // return ans;
 }
 
 static std::string PackArrayMsg(const std::vector<std::string> &array) {
@@ -193,6 +193,15 @@ static std::string PackEmptyArrayMsg(size_t size) {
     arr_ss << kNilMsg;
   }
   return arr_ss.str();
+}
+
+static std::string PackIntArrayMsg(const std::vector<int>& array) {
+  std::stringstream ss;
+  ss << kArrayPrefix << array.size() << kCRLF;
+  for (const int& elem : array) {
+    ss << kIntPrefix << elem << kCRLF;
+  }
+  return ss.str();
 }
 
 Engine::Engine(KVContainer *container, Config *config) :
@@ -785,7 +794,7 @@ std::string HSetCommand(__PARAMETERS_LIST) {
     values.emplace_back(*(it + 1));
   }
   int errcode;
-  int count = holder->HashSetKV(Key(key), fields, values, errcode);
+  int count = holder->HashUpdateKV(Key(key), fields, values, errcode);
   if (errcode == kOkCode && count != 0) {
     if (sync && appendable) {
       appendable->Append(cmds);
@@ -889,6 +898,76 @@ std::string HLenCommand(__PARAMETERS_LIST) {
   size_t len = holder->HashLen(key, errcode);
   IfWrongTypeReturn(errcode);
   return PackIntReply(len);
+}
+
+std::string SAddCommand(__PARAMETERS_LIST) {
+  /* usage: sadd key member1 member2 ... */
+  CheckSyntaxHelper(cmds, 1, -1, false, 'sadd');
+  const std::string &key = cmds.argv[1];
+  int errcode;
+  /* fixme: extra memory cost */
+  std::vector<std::string> members(cmds.argv.begin() + 2, cmds.argv.end()); 
+  int n_added = holder->SetAddItem(key, members, errcode);
+  IfWrongTypeReturn(errcode);
+  IfFailReturn(errcode, PackIntReply(0));
+  return PackIntReply(n_added);
+}
+
+std::string SIsMemberCommand(__PARAMETERS_LIST) {
+  /* usage: sismember key member */
+  CheckSyntaxHelper(cmds, 1, 1, false, 'sismember');
+  const std::string &key = cmds.argv[1];
+  const std::string &member = cmds.argv[2];
+  int errcode;
+  auto ret = holder->SetIsMember(key, member, errcode);
+  IfWrongTypeReturn(errcode);
+  return PackBoolReply(ret);
+}
+
+std::string SMIsMemberCommand(__PARAMETERS_LIST) {
+  /* usage: smismember key member1 member2 ... */
+  CheckSyntaxHelper(cmds, 1, -1, false, 'smismember');
+  const std::string &key = cmds.argv[1];
+  std::vector<std::string> members(cmds.argv.begin() + 2, cmds.argv.end());
+  int errcode;
+  auto ret = holder->SetMIsMember(key, members, errcode);
+  IfWrongTypeReturn(errcode);
+  return PackIntArrayMsg(ret);
+}
+
+std::string SMembersCommand(__PARAMETERS_LIST) {
+  /* usage: smembers key */
+  CheckSyntaxHelper(cmds, 1, 0, false, 'smembers');
+  const std::string &key = cmds.argv[1];
+  int errcode;
+  auto ret = holder->SetGetMembers(key, errcode);
+  IfWrongTypeReturn(errcode);
+  return PackArrayMsg(ret);
+}
+
+std::string SRemCommand(__PARAMETERS_LIST) {
+  /* usage: srem key member1 member2 ... */
+  CheckSyntaxHelper(cmds, 1, -1, false, 'srem');
+  const std::string &key = cmds.argv[1];
+  std::vector<std::string> members(cmds.argv.begin() + 2, cmds.argv.end());
+  int errcode;
+  auto ret = holder->SetRemoveMembers(key, members, errcode);
+  IfWrongTypeReturn(errcode);
+  return PackIntReply(ret);
+}
+
+std::string SCardCommand(__PARAMETERS_LIST) {
+  /* usage: scard key */
+  CheckSyntaxHelper(cmds, 1, 0, false, 'scard');
+  const std::string &key = cmds.argv[1];
+  int errcode;
+  auto ret = holder->SetGetMemberCount(key, errcode);
+  IfWrongTypeReturn(errcode);
+  return PackIntReply(ret);
+}
+
+std::string SPopCommand(__PARAMETERS_LIST) {
+  return kNotSupportedYetMsg; 
 }
 
 std::string PackPublishMessage(const std::string& chan_name, const std::string& message) {

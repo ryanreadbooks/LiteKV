@@ -1,13 +1,14 @@
 #ifndef __VALUE_OBJECT_H__
 #define __VALUE_OBJECT_H__
 
-#include <string>
 #include <memory>
+#include <string>
 
-#include "str.h"
 #include "dlist.h"
 #include "hashdict.h"
+#include "hashset.h"
 #include "net/time_event.h"
+#include "str.h"
 
 struct ValueObject;
 
@@ -19,10 +20,11 @@ typedef std::shared_ptr<ValueObject> ValueObjectPtr;
 #define OBJECT_STRING 2 /* string object */
 #define OBJECT_LIST 3   /* list object */
 #define OBJECT_HASH 4   /* hash object */
+#define OBJECT_SET 5    /* set object */
 
 /**
  * @brief wrapper for value stored
- * 
+ *
  */
 struct ValueObject {
   /* object type */
@@ -34,31 +36,31 @@ struct ValueObject {
   /* pointer to real content */
   void *ptr;
 
-  ValueObject() {}
+  ValueObject() = default;
 
-  ValueObject(unsigned char type, void* ptr) :
-    type(type), lv_time(GetCurrentMs()), ptr(ptr) {}
+  ValueObject(unsigned char type, void *ptr) : type(type), lv_time(GetCurrentMs()), ptr(ptr) {}
 
   void FreePtr() {
     if (type != OBJECT_INT && ptr) { /* no need to free int object */
       if (type == OBJECT_STRING) {
-        delete reinterpret_cast<DynamicString*> (ptr);
+        delete reinterpret_cast<DynamicString *>(ptr);
       } else if (type == OBJECT_LIST) {
         delete reinterpret_cast<DList *>(ptr);
       } else if (type == OBJECT_HASH) {
         delete reinterpret_cast<HashDict *>(ptr);
+      } else if (type == OBJECT_SET) {
+        delete reinterpret_cast<HashSet *>(ptr);
       }
       ptr = nullptr;
     }
   }
 
   int64_t ToInt64() const {
-    if (type != OBJECT_INT)
-      return 0;
+    if (type != OBJECT_INT) return 0;
     return reinterpret_cast<int64_t>(ptr);
   }
 
-  DynamicString* ToDynamicString() const {
+  DynamicString *ToDynamicString() const {
     if (type != OBJECT_STRING) {
       return nullptr;
     }
@@ -94,5 +96,9 @@ ValueObjectPtr ConstructDListObjPtr();
 ValueObject *ConstructHashObj();
 
 ValueObjectPtr ConstructHashObjPtr();
+
+ValueObject *ConstructSetObj();
+
+ValueObjectPtr ConstructSetObjPtr();
 
 #endif  // __VALUE_OBJECT_H__

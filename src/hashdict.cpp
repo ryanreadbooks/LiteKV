@@ -25,8 +25,8 @@ int HashTable::UpdateKV(const HEntryKey &key, const HEntryKey &val) {
 }
 
 int HashTable::AddEntry(HTEntry *new_entry) {
-  int added = NEW_ADDED;
   if (new_entry != nullptr) {
+    int added = NEW_ADDED;
     uint64_t slot_idx = CalculateSlotIndex(*new_entry->key);
     if (table_[slot_idx] == nullptr) {
       table_[slot_idx] = new_entry;
@@ -43,8 +43,9 @@ int HashTable::AddEntry(HTEntry *new_entry) {
         entry->value->Reset(*new_entry->value); /* FIXME: seems unreasonable */
       }
     }
+    return added;
   }
-  return added;
+  return UNDEFINED;
 }
 
 std::vector<HEntryVal> HashTable::AllValues() const {
@@ -73,10 +74,6 @@ HEntryVal &HashTable::At(const HEntryKey &key) {
 
 /***********　HashDict impl　************/
 
-//HashDict::HashDict(double max_load_factor) : cur_ht_(new HashTable),
-//                                     max_load_factor_(max_load_factor) {
-//}
-
 int HashDict::Update(const HEntryKey &key, const HEntryVal &val) {
   if (CheckNeedRehash()) {
     PerformRehash();
@@ -85,7 +82,7 @@ int HashDict::Update(const HEntryKey &key, const HEntryVal &val) {
     return cur_ht_->UpdateKV(key, val);
   } else {
     if (cur_ht_ != nullptr) {
-      HTEntry* entry = cur_ht_->FindEntry(key);
+      HTEntry *entry = cur_ht_->FindEntry(key);
       if (entry != nullptr) { /* this is an update operation */
         entry->value->Reset(val);
         return UPDATED;
@@ -98,30 +95,6 @@ int HashDict::Update(const HEntryKey &key, const HEntryVal &val) {
   }
   return UNDEFINED;
 }
-
-//int HashDict::Erase(const HEntryKey &key) {
-//  if (CheckNeedRehash()) {
-//    PerformRehash();
-//  }
-//  if (cur_ht_ != nullptr && cur_ht_->EraseKey(key) == ERASED) {
-//    return ERASED;
-//  }
-//  return (backup_ht_ != nullptr && backup_ht_->EraseKey(key) == ERASED) ? ERASED : NOT_ERASED;
-//}
-
-//std::vector<HEntryKey> HashDict::AllKeys() const {
-//  if (Count() == 0) return {};
-//  std::vector<HEntryKey> keys;
-//  if (cur_ht_ != nullptr) {
-//    auto tmp = cur_ht_->AllKeys();
-//    keys.insert(keys.end(), tmp.begin(), tmp.end());
-//  }
-//  if (backup_ht_ != nullptr) {
-//    auto tmp = backup_ht_->AllKeys();
-//    keys.insert(keys.end(), tmp.begin(), tmp.end());
-//  }
-//  return keys;
-//}
 
 std::vector<HEntryVal> HashDict::AllValues() const {
   if (Count() == 0) return {};
@@ -136,27 +109,6 @@ std::vector<HEntryVal> HashDict::AllValues() const {
   }
   return values;
 }
-
-//bool HashDict::CheckExists(const HEntryKey &key) {
-//  if (cur_ht_ && cur_ht_->CheckExists(key)) {
-//    return true;
-//  }
-//  return backup_ht_ && backup_ht_->CheckExists(key);
-//}
-
-//std::vector<HTEntry *> HashDict::AllEntries() const {
-//  if (Count() == 0) return {};
-//  std::vector<HTEntry *> entries;
-//  if (cur_ht_ != nullptr) {
-//    auto tmp = cur_ht_->AllEntries();
-//    entries.insert(entries.end(), tmp.begin(), tmp.end());
-//  }
-//  if (backup_ht_ != nullptr) {
-//    auto tmp = backup_ht_->AllEntries();
-//    entries.insert(entries.end(), tmp.begin(), tmp.end());
-//  }
-//  return entries;
-//}
 
 HEntryVal &HashDict::At(const HEntryKey &key) {
   if (CheckNeedRehash()) {
@@ -173,45 +125,3 @@ HEntryVal &HashDict::At(const HEntryKey &key) {
   }
   throw std::out_of_range(key.ToStdString() + " not found in hashtable");
 }
-
-//bool HashDict::PerformRehash() {
-//  /* rehashing implementation */
-//  if (backup_ht_ == nullptr) {
-//    size_t new_slot_size = cur_ht_->slot_size_ * kGrowFactor;
-//    backup_ht_ = new HashTable(new_slot_size);
-//  }
-//  if (!cur_ht_->RehashDone()) {
-//    HTEntry *head = cur_ht_->table_[cur_ht_->rehashing_idx_];
-//    cur_ht_->table_[cur_ht_->rehashing_idx_] = nullptr; /* disconnect with slot */
-//    /* move every entry from old hashtable to new hashtable */
-//    HTEntry *next = nullptr;
-//    while (head) {
-//      next = head->next;
-//      head->next = nullptr;
-//      --(cur_ht_->count_);
-//      backup_ht_->AddEntry(head);
-//      head = next;
-//    }
-//    cur_ht_->StepRehashingIdx();
-//  }
-//  /* check if entry movement already finished */
-//  if (cur_ht_->RehashDone() && cur_ht_->EnsureAllSlotsEmpty()) {
-//    /* free old hashtable and set backup hashtable to new hashtable */
-//    delete cur_ht_;
-//    cur_ht_ = backup_ht_;
-//    backup_ht_ = nullptr;
-//    return true;
-//  }
-//  return false;
-//}
-
-//void HashDict::RehashMoveSlots(int n) {
-//  do {
-//    if (PerformRehash()) {
-//      break;
-//    }
-//    --n;
-//  } while (n > 0);
-//}
-
-
