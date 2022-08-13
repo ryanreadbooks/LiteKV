@@ -81,7 +81,7 @@ std::vector<DynamicString> KVContainer::Overview() const {
       } else if (item.second->type == OBJECT_HASH) {
         ++n_dict;
         /* find out this dict item count */
-        n_dict_entry += ((Dict *) (item.second->ptr))->Count();
+        n_dict_entry += ((HashDict *) (item.second->ptr))->Count();
       }
     }
   }
@@ -233,7 +233,7 @@ std::vector<std::string> KVContainer::RecoverCommandFromValue(const std::string 
     return ret;
   } else if (k_type == OBJECT_HASH) {
     /* hset */
-    std::vector<HTEntry *> entries = RetrievePtr(k, Dict)->AllEntries();
+    std::vector<HTEntry *> entries = RetrievePtr(k, HashDict)->AllEntries();
     std::vector<std::string> entries_str;
     entries_str.reserve(entries.size() * 2);
     for (const auto &p_entry : entries) {
@@ -621,7 +621,7 @@ bool KVContainer::ListSetItemAtIndex(const Key &key, int index, const std::strin
   return false;
 }
 
-bool KVContainer::HashSetKV(const Key &key, const DictKey &field, const DictVal &value, int &errcode) {
+bool KVContainer::HashSetKV(const Key &key, const HEntryKey &field, const HEntryVal &value, int &errcode) {
   GetBucketAndLock(key);
   if (KeyNotFoundInBucket(key)) {
     /* create new hash object */
@@ -630,13 +630,13 @@ bool KVContainer::HashSetKV(const Key &key, const DictKey &field, const DictVal 
       errcode = kFailCode;
       return false;
     }
-    ((Dict *) (obj->ptr))->Update(field, value);
+    ((HashDict *) (obj->ptr))->Update(field, value);
     bucket.content[key] = obj;
     keys_pool_.emplace_back(bucket.content.find(key)->first);
   } else { /* found key */
     IfKeyNotTypeThenReturn(key, OBJECT_HASH, false);
     /* found hash and then update */
-    RetrievePtr(key, Dict)->Update(field, value);
+    RetrievePtr(key, HashDict)->Update(field, value);
   }
   UpdateLastVisitTime(key);
   errcode = kOkCode;
@@ -664,7 +664,7 @@ int KVContainer::HashSetKV(const Key &key, const std::vector<std::string> &field
   } else { /* found existing key */
     IfKeyNotTypeThenReturn(key, OBJECT_HASH, 0);
   }
-  Dict *p_dict = RetrievePtr(key, Dict);
+  HashDict *p_dict = RetrievePtr(key, HashDict);
   for (size_t i = 0; i < fields.size(); ++i) {
     if (p_dict->Update(fields[i], values[i]) != UNDEFINED) {
       ++count;
@@ -675,32 +675,32 @@ int KVContainer::HashSetKV(const Key &key, const std::vector<std::string> &field
   return count;
 }
 
-DictVal KVContainer::HashGetValue(const Key &key, const DictKey &field, int &errcode) {
+HEntryVal KVContainer::HashGetValue(const Key &key, const HEntryKey &field, int &errcode) {
   GetBucketAndLock(key);
-  IfKeyNotFoundThenReturn(key, DictVal());
-  IfKeyNotTypeThenReturn(key, OBJECT_HASH, DictVal());
+  IfKeyNotFoundThenReturn(key, HEntryVal());
+  IfKeyNotTypeThenReturn(key, OBJECT_HASH, HEntryVal());
   UpdateLastVisitTime(key);
   errcode = kOkCode;
   try {
-    return RetrievePtr(key, Dict)->At(field);
+    return RetrievePtr(key, HashDict)->At(field);
   } catch (const std::out_of_range &ex) {
     errcode = kKeyNotFoundCode;
-    return DictVal();
+    return HEntryVal();
   }
 }
 
-std::vector<DictVal> KVContainer::HashGetValue(const Key &key, const std::vector<std::string> &fields, int &errcode) {
+std::vector<HEntryVal> KVContainer::HashGetValue(const Key &key, const std::vector<std::string> &fields, int &errcode) {
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, {});
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, {});
-  std::vector<DictVal> values;
-  Dict *p_dict = RetrievePtr(key, Dict);
+  std::vector<HEntryVal> values;
+  HashDict *p_dict = RetrievePtr(key, HashDict);
   for (const auto &field : fields) {
     try {
       values.emplace_back(p_dict->At(field));
     } catch (const std::out_of_range &) {
       /* this field can not be found in hashtable */
-      values.emplace_back(DictVal());
+      values.emplace_back(HEntryVal());
     }
   }
   UpdateLastVisitTime(key);
@@ -708,13 +708,13 @@ std::vector<DictVal> KVContainer::HashGetValue(const Key &key, const std::vector
   return values;
 }
 
-int KVContainer::HashDelField(const Key &key, const DictKey &field, int &errcode) {
+int KVContainer::HashDelField(const Key &key, const HEntryKey &field, int &errcode) {
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, false);
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, false);
   UpdateLastVisitTime(key);
   errcode = kOkCode;
-  return RetrievePtr(key, Dict)->Erase(field);
+  return RetrievePtr(key, HashDict)->Erase(field);
 }
 
 int KVContainer::HashDelField(const Key &key, const std::vector<std::string> &fields, int &errcode) {
@@ -723,7 +723,7 @@ int KVContainer::HashDelField(const Key &key, const std::vector<std::string> &fi
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, 0);
   int n_erased = 0;
   for (const auto &field : fields) {
-    if (RetrievePtr(key, Dict)->Erase(field) == ERASED) {
+    if (RetrievePtr(key, HashDict)->Erase(field) == ERASED) {
       ++n_erased;
     }
   }
@@ -732,20 +732,20 @@ int KVContainer::HashDelField(const Key &key, const std::vector<std::string> &fi
   return n_erased;
 }
 
-bool KVContainer::HashExistField(const Key &key, const DictKey &field, int &errcode) {
+bool KVContainer::HashExistField(const Key &key, const HEntryKey &field, int &errcode) {
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, false);
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, false);
   UpdateLastVisitTime(key);
   errcode = kOkCode;
-  return RetrievePtr(key, Dict)->CheckExists(field);
+  return RetrievePtr(key, HashDict)->CheckExists(field);
 }
 
 std::vector<DynamicString> KVContainer::HashGetAllEntries(const Key &key, int &errcode) {
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, {});
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, {});
-  std::vector<HTEntry *> entries = RetrievePtr(key, Dict)->AllEntries();
+  std::vector<HTEntry *> entries = RetrievePtr(key, HashDict)->AllEntries();
   std::vector<DynamicString> entries_str;
   entries_str.reserve(entries.size() * 2);
   for (const auto &p_entry : entries) {
@@ -757,22 +757,22 @@ std::vector<DynamicString> KVContainer::HashGetAllEntries(const Key &key, int &e
   return entries_str;
 }
 
-std::vector<DictKey> KVContainer::HashGetAllFields(const Key &key, int &errcode) {
+std::vector<HEntryKey> KVContainer::HashGetAllFields(const Key &key, int &errcode) {
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, {});
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, {});
   UpdateLastVisitTime(key);
   errcode = kOkCode;
-  return RetrievePtr(key, Dict)->AllKeys();
+  return RetrievePtr(key, HashDict)->AllKeys();
 }
 
-std::vector<DictVal> KVContainer::HashGetAllValues(const Key &key, int &errcode) {
+std::vector<HEntryVal> KVContainer::HashGetAllValues(const Key &key, int &errcode) {
   GetBucketAndLock(key);
   IfKeyNotFoundThenReturn(key, {});
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, {});
   UpdateLastVisitTime(key);
   errcode = kOkCode;
-  return RetrievePtr(key, Dict)->AllValues();
+  return RetrievePtr(key, HashDict)->AllValues();
 }
 
 size_t KVContainer::HashLen(const Key &key, int &errcode) {
@@ -781,5 +781,5 @@ size_t KVContainer::HashLen(const Key &key, int &errcode) {
   IfKeyNotTypeThenReturn(key, OBJECT_HASH, 0);
   UpdateLastVisitTime(key);
   errcode = kOkCode;
-  return RetrievePtr(key, Dict)->Count();
+  return RetrievePtr(key, HashDict)->Count();
 }

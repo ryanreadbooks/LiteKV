@@ -803,7 +803,7 @@ std::string HGetCommand(__PARAMETERS_LIST) {
   int errcode;
   Key k = Key(key);
   if (cmds.argv.size() == 3) {  /* only get one field */
-    DictVal val = holder->HashGetValue(k, DictKey(cmds.argv[2]), errcode);
+    HEntryVal val = holder->HashGetValue(k, HEntryKey(cmds.argv[2]), errcode);
     if (errcode == kOkCode) {
       return PackStringValueReply(val);
     }
@@ -811,7 +811,7 @@ std::string HGetCommand(__PARAMETERS_LIST) {
     IfWrongTypeReturn(errcode);
   } else {  /* get multiple fields */
     std::vector<std::string> fields(cmds.argv.begin() + 2, cmds.argv.end());
-    std::vector<DictVal> values = holder->HashGetValue(k, fields, errcode);
+    std::vector<HEntryVal> values = holder->HashGetValue(k, fields, errcode);
     /* pack into array and return */
     if (!values.empty()) {
       return PackArrayMsg(values);

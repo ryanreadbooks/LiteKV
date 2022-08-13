@@ -1,6 +1,6 @@
 #include <unordered_map>
 #include <iostream>
-#include "../src/dict.h"
+#include "../src/hashdict.h"
 
 using namespace std;
 
@@ -35,19 +35,19 @@ int main() {
   cout << "============== Test HashTable ==============\n";
 
   HashTable hashtable;
-  hashtable.UpdateKV(DictKey("k1", 2), DictVal("v1", 2));
-  hashtable.UpdateKV(DictKey("k2", 2), DictVal("v2", 2));
-  hashtable.UpdateKV(DictKey("k3", 2), DictVal("v3", 2));
-  hashtable.UpdateKV(DictKey("k4", 2), DictVal("v4", 2));
-  hashtable.UpdateKV(DictKey("k5", 2), DictVal("v5", 2));
+  hashtable.UpdateKV(HEntryKey("k1", 2), HEntryVal("v1", 2));
+  hashtable.UpdateKV(HEntryKey("k2", 2), HEntryVal("v2", 2));
+  hashtable.UpdateKV(HEntryKey("k3", 2), HEntryVal("v3", 2));
+  hashtable.UpdateKV(HEntryKey("k4", 2), HEntryVal("v4", 2));
+  hashtable.UpdateKV(HEntryKey("k5", 2), HEntryVal("v5", 2));
 
-  std::vector<DictKey> keys = hashtable.AllKeys();
-  std::vector<DictKey> values = hashtable.AllValues();
+  std::vector<HEntryKey> keys = hashtable.AllKeys();
+  std::vector<HEntryKey> values = hashtable.AllValues();
 
   displayHashTable(hashtable);
 
   cout << "Removing key = k3... \n";
-  cout << hashtable.EraseKey(DictKey("k3", 2)) << endl;
+  cout << hashtable.EraseKey(HEntryKey("k3", 2)) << endl;
   displayHashTable(hashtable);
 
   cout << "Updating key = k2 ... \n";
@@ -68,17 +68,17 @@ int main() {
   int n = 10;
   cout << "inserting " << n << " keys ...\n";
   for (int i = 0; i < 10; ++i) {
-    hashtable.UpdateKV(DictKey(to_string(i)), DictVal(to_string(i)));
+    hashtable.UpdateKV(HEntryKey(to_string(i)), HEntryVal(to_string(i)));
   }
   displayHashTable(hashtable);
 
   cout << "============== Test HashTable End ==============\n\n";
 
-  cout << "============== Test Dict ==============\n";
+  cout << "============== Test HashDict ==============\n";
 
-  auto displayDict = [&] (const Dict& d) {
+  auto displayDict = [&] (const HashDict& d) {
     cout << "-----------------------\n";
-    cout << "Dict item count = " << d.Count() << endl;
+    cout << "HashDict item count = " << d.Count() << endl;
     cout << "+ All keys are:   ";
     displayStrings(d.AllKeys());
     cout << "+ All values are: ";
@@ -86,7 +86,7 @@ int main() {
     cout << "-----------------------\n";
   };
 
-  Dict dict;
+  HashDict dict;
   n = 100;
   for (int i = 0; i < n; ++i) {
     dict.Update(std::to_string(i), std::to_string(i));
@@ -122,10 +122,10 @@ int main() {
   }
   dict.Update("tv1", "video");
   cout << dict.At("tv1") << endl;
-  dict.At("tv1") = DictVal("game");
+  dict.At("tv1") = HEntryVal("game");
   cout << dict.At("tv1") << endl;
 
-  cout << "============== Test Dict End ==============\n";
+  cout << "============== Test HashDict End ==============\n";
 
   return 0;
 }

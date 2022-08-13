@@ -74,7 +74,7 @@ ValueObject *ConstructHashObj() {
   }
   obj->type = OBJECT_HASH;
   obj->lv_time = GetCurrentMs();
-  Dict* p_dict = new (std::nothrow) Dict;
+  HashDict* p_dict = new (std::nothrow) HashDict;
   if (p_dict == nullptr) return nullptr;
   obj->ptr = p_dict;
   return obj;
@@ -82,7 +82,7 @@ ValueObject *ConstructHashObj() {
 
 ValueObjectPtr ConstructHashObjPtr() {
   try {
-    Dict *dict_ptr = new Dict;
+    HashDict *dict_ptr = new HashDict;
     return std::make_shared<ValueObject>(OBJECT_HASH, (void *)dict_ptr);
   } catch (const std::bad_alloc &ex) {
     return ValueObjectPtr();

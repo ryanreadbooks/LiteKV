@@ -6,7 +6,7 @@
 
 #include "str.h"
 #include "dlist.h"
-#include "dict.h"
+#include "hashdict.h"
 #include "net/time_event.h"
 
 struct ValueObject;
@@ -46,7 +46,7 @@ struct ValueObject {
       } else if (type == OBJECT_LIST) {
         delete reinterpret_cast<DList *>(ptr);
       } else if (type == OBJECT_HASH) {
-        delete reinterpret_cast<Dict *>(ptr);
+        delete reinterpret_cast<HashDict *>(ptr);
       }
       ptr = nullptr;
     }

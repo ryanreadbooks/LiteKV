@@ -9,7 +9,7 @@
 #include <mutex>
 
 #include "str.h"
-#include "dict.h"
+#include "hashdict.h"
 #include "valueobject.h"
 
 static constexpr int EVICTION_POLICY_RANDOM = 0;
@@ -241,35 +241,35 @@ public:
 
   /******************** Hashtable operation ********************/
 
-  bool HashSetKV(const Key &key, const DictKey &field, const DictVal &value, int &errcode);
+  bool HashSetKV(const Key &key, const HEntryKey &field, const HEntryVal &value, int &errcode);
 
   bool HashSetKV(const std::string &key, const std::string &field, const std::string &value, int &errcode) {
-    return HashSetKV(Key(key), DictKey(field), DictVal(value), errcode);
+    return HashSetKV(Key(key), HEntryKey(field), HEntryVal(value), errcode);
   }
 
   int HashSetKV(const Key &key, const std::vector<std::string> &fields,
                 const std::vector<std::string> &values, int &errcode);
 
-  DictVal HashGetValue(const Key &key, const DictKey &field, int &errcode);
+  HEntryVal HashGetValue(const Key &key, const HEntryKey &field, int &errcode);
 
-  DictVal HashGetValue(const std::string &key, const std::string &field, int &errcode) {
-    return HashGetValue(Key(key), DictKey(field), errcode);
+  HEntryVal HashGetValue(const std::string &key, const std::string &field, int &errcode) {
+    return HashGetValue(Key(key), HEntryKey(field), errcode);
   }
 
-  std::vector<DictVal> HashGetValue(const Key& key, const std::vector<std::string>& fields, int &errcode);
+  std::vector<HEntryVal> HashGetValue(const Key& key, const std::vector<std::string>& fields, int &errcode);
 
-  int HashDelField(const Key &key, const DictKey &field, int &errcode);
+  int HashDelField(const Key &key, const HEntryKey &field, int &errcode);
 
   int HashDelField(const std::string &key, const std::string &field, int &errcode) {
-    return HashDelField(Key(key), DictKey(field), errcode);
+    return HashDelField(Key(key), HEntryKey(field), errcode);
   }
 
   int HashDelField(const Key &key, const std::vector<std::string> &fields, int &errcode);
 
-  bool HashExistField(const Key &key, const DictKey &field, int &errcode);
+  bool HashExistField(const Key &key, const HEntryKey &field, int &errcode);
 
   bool HashExistField(const std::string &key, const std::string &field, int &errcode) {
-    return HashExistField(Key(key), DictKey(field), errcode);
+    return HashExistField(Key(key), HEntryKey(field), errcode);
   }
 
   std::vector<DynamicString> HashGetAllEntries(const Key &key, int &errcode);
@@ -278,15 +278,15 @@ public:
     return HashGetAllEntries(Key(key), errcode);
   }
 
-  std::vector<DictKey> HashGetAllFields(const Key &key, int &errcode);
+  std::vector<HEntryKey> HashGetAllFields(const Key &key, int &errcode);
 
-  std::vector<DictKey> HashGetAllFields(const std::string &key, int &errcode) {
+  std::vector<HEntryKey> HashGetAllFields(const std::string &key, int &errcode) {
     return HashGetAllFields(Key(key), errcode);
   }
 
-  std::vector<DictVal> HashGetAllValues(const Key &key, int &errcode);
+  std::vector<HEntryVal> HashGetAllValues(const Key &key, int &errcode);
 
-  std::vector<DictVal> HashGetAllValues(const std::string &key, int &errcode) {
+  std::vector<HEntryVal> HashGetAllValues(const std::string &key, int &errcode) {
     return HashGetAllValues(Key(key), errcode);
   }
 

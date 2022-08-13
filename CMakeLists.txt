@@ -7,7 +7,10 @@ set(SRC
     src/core.cpp
     src/dlist.cpp
     src/str.cpp
-    src/dict.cpp
+    src/hash.cpp
+    src/hashdict.cpp
+    src/hashset.cpp
+    src/rehashable.cpp
     src/valueobject.cpp
     src/persistence.cpp
     src/config.cpp
