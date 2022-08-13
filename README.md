@@ -19,6 +19,7 @@ make
 * string
 * list
 * hash
+* set
 
 ### Supported modes
 * Pub/Sub
@@ -234,6 +235,46 @@ make
   </tr>  
 
   <tr>
+    <td rowspan="7" align="center"> <b>Set</b> </td>
+  </tr>
+
+  <tr>
+    <td align="center"> sadd </td>
+    <td align="center"> sadd key member [member...] </td>
+    <td align="center"> Add members into set at key </td>
+  </tr>
+
+  <tr>
+    <td align="center"> sismember </td>
+    <td align="center"> sismember key member </td>
+    <td align="center"> Check a member is inside set at key </td>
+  </tr>  
+
+  <tr>
+    <td align="center"> smismember </td>
+    <td align="center"> smismember key member [member...] </td>
+    <td align="center"> Check multiple members are inside set at key </td>
+  </tr>  
+
+  <tr>
+    <td align="center"> smembers </td>
+    <td align="center"> smembers key </td>
+    <td align="center"> Return all members inside set at key </td>
+  </tr>  
+
+  <tr>
+    <td align="center"> srem </td>
+    <td align="center"> srem key member [member...] </td>
+    <td align="center"> Remove the specified members inside set at key </td>
+  </tr>  
+
+  <tr>
+    <td align="center"> scard </td>
+    <td align="center"> scard key　</td>
+    <td align="center"> Return the number of members inside set at key </td>
+  </tr>
+
+  <tr>
     <td rowspan="4" align="center"> <b>Pub/Sub</b> </td>
   </tr>
 
@@ -313,7 +354,7 @@ Compiler:  gcc 5.4.0
   * string object optimization (COW or SSO)
   * dlist optimization (redesign and reconstruct)
 * **Features**
-  * support more data structure, such as sets, sorted sets, etc.
+  * support more data structure, such as ~~set~~, sorted sets, etc.
   * transaction
   * make it distributed
   * master-slave mode
