@@ -13,7 +13,7 @@ int main(int argc, char **argv) {
 #endif
 
   if (argc != 3) {
-    std::cout << "Usage: ./generate_pseudo_data kNumRecord dumpfile\n";
+    std::cout << "Usage: " << argv[0] << " kNumRecord dumpfile\n";
     return 0;
   }
   std::string filename = argv[2];

@@ -13,12 +13,12 @@ int main(int argc, char **argv) {
   MallocExtension::Initialize();
 #endif
   if (argc != 3) {
-    std::cout << "Usage: ./shrink_dumpfile sourcefile destinationfile";
+    std::cout << "Usage: " << argv[0] << " sourcefile destinationfile\n";
     exit(EXIT_SUCCESS);
   }
   std::string source = argv[1];
   std::string destination = argv[2];
-  std::cout << "shrink dumpfile from " << source << " to " << destination << "...\n";
+  std::cout << "Rewriting dumpfile from " << source << " to " << destination << "...\n";
 
   try {
     AppendableFile file(destination, 4096, true);
