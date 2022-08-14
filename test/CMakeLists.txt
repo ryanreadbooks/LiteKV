@@ -1,0 +1,21 @@
+cmake_minimum_required(VERSION 3.5)
+
+project(LiteKV)
+
+set(EXECUTABLE_OUTPUT_PATH "${LITEKV_SOURCE_DIR}/bin")
+
+add_executable_and_link(test_dict "test_dict.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_executable_and_link(test_core "test_core.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_executable_and_link(test_core2 "test_core2.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_executable_and_link(test_core3 "test_core3.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_executable_and_link(test_core4 "test_core4.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_executable_and_link(test_dlist "test_dlist.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_executable_and_link(test_dlist2 "test_dlist2.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_executable_and_link(test_buffer "test_buffer.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_executable_and_link(test_config "test_config.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_executable_and_link(test_hashset "test_hashset.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_executable_and_link(test_time_event "test_time_event.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_executable_and_link(test_protocol "test_protocol.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_executable_and_link(test_static_string "test_static_string.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_executable_and_link(test_dynamic_string "test_dynamic_string.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_executable_and_link(test_appendable_file "test_appendable_file.cpp" "${LITEKV_SRC}" "${LIBS}")
