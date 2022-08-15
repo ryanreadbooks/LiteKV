@@ -2,7 +2,14 @@ cmake_minimum_required(VERSION 3.5)
 
 project(LiteKV)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_CXX_FLAGS "-std=c++11 -ggdb -Wall -Wno-unused")
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_FLAGS_DEBUG "$ENV{CXXFLAGS} -ggdb -Wall -Wno-unused")
+set(CMAKE_CXX_FLAGS_RELEASE "$ENV{CXXFLAGS} -O2 -Wall -Wno-unused")
+
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+  set(CMAKE_VERBOSE_MAKEFILE ON)
+endif ()
+
 # global cache LITEKV_SOURCE_DIR
 set(LITEKV_SOURCE_DIR "${PROJECT_SOURCE_DIR}")
 option(BUILD_TESTS "Build test" OFF)
@@ -63,11 +70,11 @@ if (BUILD_BENCHMARKS)
 endif(BUILD_BENCHMARKS)
 
 if (TCMALLOC_LIB)
-  target_compile_options(litekv-rewrite-dump PRIVATE -O2 -DTCMALLOC_FOUND)
+  target_compile_options(litekv-rewrite-dump PRIVATE -DTCMALLOC_FOUND)
   target_link_libraries(litekv-rewrite-dump tcmalloc)
-  target_compile_options(litekv-gen-pseudo-data PRIVATE -O2 -DTCMALLOC_FOUND)
+  target_compile_options(litekv-gen-pseudo-data PRIVATE -DTCMALLOC_FOUND)
   target_link_libraries(litekv-gen-pseudo-data tcmalloc)
-  target_compile_options(kvmain PRIVATE -O2 -DTCMALLOC_FOUND)
+  target_compile_options(kvmain PRIVATE -DTCMALLOC_FOUND)
   target_link_libraries(kvmain tcmalloc)
 endif()
 

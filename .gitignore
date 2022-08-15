@@ -3,6 +3,7 @@ build
 bin
 .idea
 cmake-build-debug
+cmake-build-release
 benchmark/bench/multi-threads*
 benchmark/bench/single-thread*
 .VSCodeCounter

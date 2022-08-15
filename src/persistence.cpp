@@ -1,13 +1,19 @@
 #include <unistd.h>
+#include <cassert>
 #include <chrono>
 #include <utility>
+#include <unordered_set>
+#include <unordered_map>
 #include "persistence.h"
 #include "net/protocol.h"
 #include "str.h"
 
 #define OP_TYPE_LIST 0
 #define OP_TYPE_HASH 1
-#define OP_TYPE_PLAIN 2
+#define OP_TYPE_STRING 2
+#define OP_TYPE_INTEGER 3
+#define OP_TYPE_SET 4
+#define OP_TYPE_OTHER 5
 
 AppendableFile::AppendableFile(std::string location, size_t cache_size, bool auto_flush)
     : location_(std::move(location)), cache_max_size_(cache_size),
@@ -156,7 +162,14 @@ void AppendableFile::Switch() {
   std::swap(cur_caches_, backup_caches_);
 }
 
-/* TODO : NOT FULLY TESTED YET. NOT ALL COMMANDS SUPPORTED NOW */
+/* TODO: NOT FULLY TESTED YET.
+ * For now, only the following commands appear in aof file:
+ *  generic: set, del, expireat,
+ *  integer or string: incr, decr, incrby, decrby, append,
+ *  list: lpush, rpush, lpop, rpop, lsetindex,
+ *  hash: hset, hdel,
+ *  set: sadd, srem
+*/
 void AppendableFile::RemoveRedundancy(const std::string &source_file) {
   /* refactor dumpfile, remove those redundant commands,
    * such as set one key, and then del this key, in this case, we do not need to set this key at all;
@@ -176,17 +189,20 @@ void AppendableFile::RemoveRedundancy(const std::string &source_file) {
     };
     std::cout << "Populating caches...\n";
     CommonOperation(ifs, populate_caches_func);
-    /* process all keys command operations */
     size_t counter = 0;
+    /* process all keys command operations */
     for (auto &&item : cache_map) {
-      std::cout << "Processing (" << ++counter << "/" << cache_map.size() << ')' << "...\n";
+      std::cout << "Processing (" << ++counter << "/" << cache_map.size() << ")...\n";
       /* commands on the same list have identical key */
       const std::string &key = item.second.front().argv[1];
       std::queue<CommandCache> sequential;  /* sequential is to store a serial of commands on one key in the original order */
       const std::list<CommandCache> commands = item.second;
+      /* iterate every command of this key */
       for (auto &&cmd : commands) {
         const std::string &operation = cmd.argv[0];
-        /* del command has the highest priority, and set command will overwrite existing keys */
+        /* del command has the highest priority,
+         * and set command will overwrite existing keys no matter what the type of key is,
+         * expireat command will delete the key as well if current time is greater*/
         if (operation == "del" || operation == "set" || operation == "expireat") {
           bool clear_all = false;
           if (operation == "expireat") {
@@ -201,21 +217,29 @@ void AppendableFile::RemoveRedundancy(const std::string &source_file) {
               sequential.push(cmd);
             }
           } else {
+            /* if it is not 'expireat', we need to invalidate previous content
+             * (because 'del' deletes key and 'set' overwrites key) */
             clear_all = true;
           }
+          /* invalidate previous cached commands when meets 'del' or 'set' command, or 'expireat' command decides to invalidate */
           if (clear_all) {
             while (!sequential.empty()) {
               sequential.pop();
             }
           }
         }
+        /* command still counts */
         if (operation != "del" && operation != "expireat") {
           sequential.push(cmd);
         }
       }
-      /* finally get pre-processed commands stored in a queue 'sequential' for one key */
+      /* finally get pre-processed commands stored in a queue 'sequential' for one key.
+       * The following mainly handle list, hash and set structure operations */
       std::deque<std::string> aux_list; /* list insertion simulation */
       std::unordered_map<std::string, std::string> aux_hash; /* hash insertion simulation */
+      std::unordered_set<std::string> aux_uset; /* set operation simulation */
+      std::string aux_string; /* string operation simulation */
+      std::int64_t aux_int64 = 0;
       CommandCache cache;
       uint8_t op_type;
       if (!sequential.empty()) {
@@ -253,13 +277,44 @@ void AppendableFile::RemoveRedundancy(const std::string &source_file) {
                 aux_hash.erase(operands[i]);
               }
             }
+          } else if (op == "sadd" || op == "srem") {
+              /* if starts with set operation, the rest is set operation */
+              op_type = OP_TYPE_SET;
+              /* either all 'sadd' or all 'srem' in one loop */
+              for (size_t i = 2; i < operands.size(); ++i) {
+                if (op == "sadd") {
+                  aux_uset.insert(operands[i]);
+                } else if (op == "srem") {
+                  aux_uset.erase(operands[i]);
+                }
+              }
+          } else if (op == "append") {
+            op_type = OP_TYPE_STRING;
+            aux_string.append(operands[2]);
+          } else if (op == "incr" || op == "decr" || op == "incrby" || op == "decrby") {
+            op_type = OP_TYPE_INTEGER;
+            if (CanConvertToInt64(aux_string, aux_int64) || aux_string.empty()) {
+              if (op == "incr") {
+                aux_string = std::to_string(aux_int64 + 1);
+              } else if (op == "decr") {
+                aux_string = std::to_string(aux_int64 - 1);
+              } else if (op == "incrby") {
+                aux_string = std::to_string(aux_int64 + std::stoll(operands[2]));
+              } else {  /* op == "decrby */
+                aux_string = std::to_string(aux_int64 - std::stoll(operands[2]));
+              }
+            }
           } else {
-            op_type = OP_TYPE_PLAIN;
-            /* other type of data just normal handling */
-            Append(sequential.front());
+            op_type = OP_TYPE_OTHER;
+            assert(op == "set");
+            if (sequential.size() != 1) {
+              aux_string = operands[2]; /*　init aux_string */
+            } else {
+              Append(sequential.front());/* set command alone */
+            }
           }
           sequential.pop();
-        }
+        } // finish processing one key
         /* After done processing a series of operations on this key, we can now restore the command that can generate the final result and add it to file */
         if (op_type == OP_TYPE_LIST) {
           /* sync list generation command into buffer */
@@ -282,11 +337,26 @@ void AppendableFile::RemoveRedundancy(const std::string &source_file) {
           Append(cache);
           cache.Clear();
           aux_hash.clear();
+        } else if (op_type == OP_TYPE_SET) {
+          /* sync set generation command into buffer */
+          cache.argv.assign(aux_uset.begin(), aux_uset.end());
+          cache.argv.insert(cache.argv.begin(), key);
+          cache.argv.insert(cache.argv.begin(), "sadd");
+          cache.argc = cache.argv.size();
+          Append(cache);
+          cache.Clear();
+          aux_uset.clear();
+        } else if (op_type == OP_TYPE_INTEGER || op_type == OP_TYPE_STRING) {
+          cache.argv = {"set", key, aux_string};
+          cache.argc = cache.argv.size();
+          Append(cache);
+          cache.Clear();
+          aux_string.clear();
         }
       }
     }
   } else {
-    std::cerr << "Can not open source file " << source_file << std::endl;
+    std::cerr << "Can not open source file " << source_file << "[" << strerror(errno) << "]\n";
   }
 }
 

@@ -67,8 +67,8 @@ static double RandDoubleValue(double from, double to) {
 std::vector<DynamicString> KVContainer::Overview() const {
   /* make statistic */
   LockGuard lck(mtx_);
-  size_t n_int = 0, n_str = 0, n_list = 0, n_dict = 0;
-  size_t n_list_elem = 0, n_dict_entry = 0;
+  size_t n_int = 0, n_str = 0, n_list = 0, n_dict = 0, n_set = 0;
+  size_t n_list_elem = 0, n_dict_entry = 0, n_set_mem = 0;
   for (const auto &bucket : bucket_) {
     for (const auto &item : bucket.content) {
       if (item.second->type == OBJECT_INT) {
@@ -83,6 +83,9 @@ std::vector<DynamicString> KVContainer::Overview() const {
         ++n_dict;
         /* find out this dict item count */
         n_dict_entry += ((HashDict *) (item.second->ptr))->Count();
+      } else if (item.second->type == OBJECT_SET) {
+        ++n_set;
+        n_set_mem += ((HashSet*)(item.second->ptr))->Count();
       }
     }
   }
@@ -90,7 +93,8 @@ std::vector<DynamicString> KVContainer::Overview() const {
   ss << "Number of int: " << n_int
      << "\tNumber of string: " << n_str
      << "\tNumber of list: " << n_list << ", total elements: " << n_list_elem
-     << "\tNumber of hash: " << n_dict << ", total entries: " << n_dict_entry;
+     << "\tNumber of hash: " << n_dict << ", total entries: " << n_dict_entry
+     << "\tNumber of set: " << n_set << ", total entries: " << n_set_mem;
   std::vector<DynamicString> overview;
   overview.emplace_back("Number of int:");
   overview.emplace_back(std::to_string(n_int));
@@ -104,6 +108,10 @@ std::vector<DynamicString> KVContainer::Overview() const {
   overview.emplace_back(std::to_string(n_dict));
   overview.emplace_back("Number of elements in hash:");
   overview.emplace_back(std::to_string(n_dict_entry));
+  overview.emplace_back("Number of set:");
+  overview.emplace_back(std::to_string(n_set));
+  overview.emplace_back("Number of elements in set:");
+  overview.emplace_back(std::to_string(n_set_mem));
   return overview;
 }
 
@@ -245,6 +253,17 @@ std::vector<std::string> KVContainer::RecoverCommandFromValue(const std::string 
     std::vector<std::string> ret = {"hset", key};
     ret.insert(ret.end(), entries_str.begin(), entries_str.end());
     return ret;
+  } else if (k_type == OBJECT_SET) {
+    /* sadd */
+    std::vector<HSEntry*> entries = RetrievePtr(k, HashSet)->AllEntries();
+    std::vector<std::string> entries_str;
+    for (const auto &p_entry : entries) {
+      const HSEntry &entry = *p_entry;
+      entries_str.emplace_back(entry.key->ToStdString());
+    }
+    std::vector<std::string> ret = {"sadd", key};
+    ret.insert(ret.end(), entries_str.begin(), entries_str.end());
+    return ret;
   }
   errcode = kFailCode;
   return {};
@@ -338,7 +357,6 @@ int64_t KVContainer::DecrIntBy(const Key &key, int64_t decrement, int &errcode) 
   }
 }
 
-
 bool KVContainer::SetString(const Key &key, const std::string &value) {
   // get bucket
   GetBucketAndLock(key);
@@ -356,10 +374,10 @@ bool KVContainer::SetString(const Key &key, const std::string &value) {
     if (type == OBJECT_STRING) {
       /* override existing string object */
       RetrievePtr(key, DynamicString)->Reset(value);
-    } else if (type == OBJECT_LIST || type == OBJECT_HASH) {
+    } else if (type == OBJECT_LIST || type == OBJECT_HASH || type == OBJECT_SET) {
       bucket.content[key]->FreePtr();
     }
-    if (type == OBJECT_INT || type == OBJECT_LIST || type == OBJECT_HASH) {
+    if (type == OBJECT_INT || type == OBJECT_LIST || type == OBJECT_HASH || type == OBJECT_SET) {
       /* construct a new dynamic string object */
       DynamicString *dsptr = new(std::nothrow) DynamicString(value);
       if (dsptr == nullptr) {
@@ -430,23 +448,36 @@ int KVContainer::Delete(const std::vector<std::string> &keys) {
 
 size_t KVContainer::Append(const Key &key, const std::string &val, int &errcode) {
   GetBucketAndLock(key);
-  IfKeyNotFoundThenReturn(key, false);
-  if (bucket.content[key]->type == OBJECT_STRING) {
-    ((DynamicString *) bucket.content[key]->ptr)->Append(val);
-  } else if (bucket.content[key]->type == OBJECT_INT) {
-    /* append operation will make int turn to string */
-    int64_t num = bucket.content[key]->ToInt64();
-    DynamicString *dsptr = new(std::nothrow) DynamicString(std::to_string(num));
-    if (dsptr == nullptr) return 0;
-    dsptr->Append(val);
-    /* change value object */
-    bucket.content[key]->ptr = dsptr;
-    bucket.content[key]->type = OBJECT_STRING;
+  // IfKeyNotFoundThenReturn(key, false);
+  /* append to a non-existing will this key as string type */
+  if (KeyNotFoundInBucket(key)) {
+    /* set new value */
+    ValueObjectPtr sptr = ConstructStrObjPtr(val);
+    if (!sptr) {
+      errcode = kFailCode;
+      return 0;
+    }
+    bucket.content[key] = sptr;
+    keys_pool_.emplace_back(bucket.content.find(key)->first);
   } else {
-    errcode = kWrongTypeCode;
-    return 0;
+    /* key exists */
+    if (bucket.content[key]->type == OBJECT_STRING) {
+      ((DynamicString *) bucket.content[key]->ptr)->Append(val);
+    } else if (bucket.content[key]->type == OBJECT_INT) {
+      /* append operation will make int turn to string */
+      int64_t num = bucket.content[key]->ToInt64();
+      DynamicString *dsptr = new(std::nothrow) DynamicString(std::to_string(num));
+      if (dsptr == nullptr) return 0;
+      dsptr->Append(val);
+      /* change value object */
+      bucket.content[key]->ptr = dsptr;
+      bucket.content[key]->type = OBJECT_STRING;
+    } else {
+      errcode = kWrongTypeCode;
+      return 0;
+    }
+    UpdateLastVisitTime(key);
   }
-  UpdateLastVisitTime(key);
   errcode = kOkCode;
   return RetrievePtr(key, DynamicString)->Length();
 }
@@ -479,10 +510,10 @@ size_t KVContainer::RightPush(const std::string &key, const std::vector<std::str
     IfKeyNotTypeThenReturn(key, OBJECT_LIST, false);          \
   }
 
-#define ListPushAuxCommon2(key, val) \
-  if (leftpush) { \
-    RetrievePtr(key, DList)->PushLeft(val); \
-  } else {  \
+#define ListPushAuxCommon2(key, val)          \
+  if (leftpush) {                             \
+    RetrievePtr(key, DList)->PushLeft(val);   \
+  } else {                                    \
     RetrievePtr(key, DList)->PushRight(val);  \
   }
 
