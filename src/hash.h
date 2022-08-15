@@ -53,13 +53,13 @@ class HashStructBase {
 public:
   explicit HashStructBase(unsigned long init_size = 16) : slot_size_(init_size), count_(0) {
     /* allocate array space */
-    table_ = new (std::nothrow) EntryType *[init_size]; /* all pointers */
-    if (table_ == nullptr) {
+    table_ = new EntryType *[init_size]; /* all pointers */
+    if (table_ != nullptr) {
+      memset(table_, 0, sizeof(EntryType *) * init_size);
+    } else {
       std::cerr << "unable to allocate " << (sizeof(EntryType *) * init_size)
                 << " bytes memory for HashStructBase\n";
-      abort(); /* Fixme(220813): maybe we should not abort when table can not be created */
     }
-    memset(table_, 0, sizeof(EntryType *) * init_size);
   }
   /* free all EntryType node */
   virtual ~HashStructBase() {
@@ -80,6 +80,8 @@ public:
       table_ = nullptr;
     }
   }
+
+  bool IsValid() const { return table_ != nullptr; }
 
   int EraseKey(const HEntryKey &key);
 
