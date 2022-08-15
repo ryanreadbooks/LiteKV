@@ -70,24 +70,31 @@ static std::unordered_map<std::string, TimeEvent *> sExpiresMap;
 static int sEvictPolicy = EVICTION_POLICY_RANDOM;
 
 #define IfFailReturn(errcode, retval) \
-  do {  \
-    if (errcode == kFailCode) {\
-      return retval;\
-    }\
+  do {                                \
+    if (errcode == kFailCode) {       \
+      return retval;                  \
+    }                                 \
   } while (0)
 
-#define IfWrongTypeReturn(errcode)                                             \
-  do {                                                                         \
-    if (errcode == kWrongTypeCode) {                                           \
-      return kWrongTypeMsg;                                                    \
-    }                                                                          \
+#define IfWrongTypeReturn(errcode)   \
+  do {                               \
+    if (errcode == kWrongTypeCode) { \
+      return kWrongTypeMsg;          \
+    }                                \
   } while (0)
 
-#define IfKeyNotFoundReturn(errcode)                                           \
-  do {                                                                         \
-    if (errcode == kKeyNotFoundCode) {                                         \
-      return kNilMsg;                                                          \
-    }                                                                          \
+#define IfKeyNotFoundReturn(errcode)   \
+  do {                                 \
+    if (errcode == kKeyNotFoundCode) { \
+      return kNilMsg;                  \
+    }                                  \
+  } while (0)
+
+#define AddIntoAppendableDirectly(cmds) \
+  do {                                  \
+    if (sync && appendable) {           \
+      appendable->Append(cmds);         \
+    }                                   \
   } while (0)
 
 // FIXME optimize syntax check
@@ -335,9 +342,7 @@ std::string DelCommand(__PARAMETERS_LIST) {
   /* usage: del key1 key2 key3 ... */
   CheckSyntaxHelper(cmds, -1, 0, false, 'del'); /* multiple keys supported */
   size_t n = holder->Delete(std::vector<std::string>(cmds.argv.begin() + 1, cmds.argv.end()));
-  if (sync && appendable) {
-    appendable->Append(cmds);
-  }
+  AddIntoAppendableDirectly(cmds);
   return PackIntReply(n);
 }
 
@@ -476,9 +481,7 @@ std::string SetCommand(__PARAMETERS_LIST) {
     res = holder->SetString(key, value);
   }
   if (res) {
-    if (sync && appendable) {
-      appendable->Append(cmds);
-    }
+    AddIntoAppendableDirectly(cmds);
     return kOkMsg;
   }
   return kNotOkMsg;
@@ -505,11 +508,11 @@ std::string GetCommand(__PARAMETERS_LIST) {
   return kNilMsg;
 }
 
-#define IfInt64OverflowThenReturn(errcode)                                     \
-  do {                                                                         \
-    if (errcode == kOverflowCode) {                                            \
-      return kInt64OverflowMsg;                                                \
-    }                                                                          \
+#define IfInt64OverflowThenReturn(errcode) \
+  do {                                     \
+    if (errcode == kOverflowCode) {        \
+      return kInt64OverflowMsg;            \
+    }                                      \
   } while (0)
 
 #define IncrDecrCommonHelper(cmds, operation, appendable, sync) \
@@ -518,9 +521,7 @@ std::string GetCommand(__PARAMETERS_LIST) {
     int errcode = 0;                                            \
     int64_t ans = holder->operation(key, errcode);              \
     if (errcode == kOkCode) {                                   \
-      if (sync && appendable) {                                 \
-        appendable->Append(cmds);                               \
-      }                                                         \
+      AddIntoAppendableDirectly(cmds);                          \
       return PackIntReply(ans);                                 \
     }                                                           \
     IfWrongTypeReturn(errcode);                                 \
@@ -542,9 +543,7 @@ std::string GetCommand(__PARAMETERS_LIST) {
   int errcode = 0;                                               \
   int64_t ans = holder->operation(key, num, errcode);            \
   if (errcode == kOkCode) {                                      \
-    if (sync && appendable) {                                    \
-      appendable->Append(cmds);                                  \
-    }                                                            \
+    AddIntoAppendableDirectly(cmds);                             \
     return PackIntReply(ans);                                    \
   }                                                              \
   IfWrongTypeReturn(errcode);                                    \
@@ -601,9 +600,7 @@ std::string AppendCommand(__PARAMETERS_LIST) {
   int errcode;
   size_t after_len = holder->Append(key, value, errcode);
   if (errcode == kOkCode) {
-    if (sync && appendable) {
-      appendable->Append(cmds);
-    }
+    AddIntoAppendableDirectly(cmds);
     return PackIntReply(after_len);
   }
   IfKeyNotFoundReturn(errcode);
@@ -640,9 +637,7 @@ std::string LLenCommand(__PARAMETERS_LIST) {
     auto popped = holder->operation(key, errcode);              \
     if (errcode == kOkCode) {                                   \
       if (!popped.Empty()) {                                    \
-        if (sync && appendable) {                               \
-          appendable->Append(cmds);                             \
-        }                                                       \
+        AddIntoAppendableDirectly(cmds);                        \
         return PackStringValueReply(popped.ToStdString());      \
       }                                                         \
       return kNilMsg;                                           \
@@ -675,9 +670,7 @@ std::string RPopCommand(__PARAMETERS_LIST) {
     size_t list_len = holder->operation(                                       \
         key, std::vector<std::string>(args.begin() + 2, args.end()), errcode); \
     if (errcode == kOkCode) {                                                  \
-      if (sync && appendable) {                                                \
-        appendable->Append(cmds);                                              \
-      }                                                                        \
+      AddIntoAppendableDirectly(cmds);                                         \
       return PackIntReply(list_len);                                           \
     } else if (errcode == kWrongTypeCode) {                                    \
       return kWrongTypeMsg;                                                    \
@@ -747,9 +740,7 @@ std::string LSetCommand(__PARAMETERS_LIST) {
   int errcode;
   holder->ListSetItemAtIndex(key, idx, value, errcode);
   if (errcode == kOkCode) {
-    if (sync && appendable) {
-      appendable->Append(cmds);
-    }
+    AddIntoAppendableDirectly(cmds);
     return kOkMsg;
   } else if (errcode == kWrongTypeCode) {
     return kWrongTypeMsg;
@@ -796,9 +787,7 @@ std::string HSetCommand(__PARAMETERS_LIST) {
   int errcode;
   int count = holder->HashUpdateKV(Key(key), fields, values, errcode);
   if (errcode == kOkCode && count != 0) {
-    if (sync && appendable) {
-      appendable->Append(cmds);
-    }
+    AddIntoAppendableDirectly(cmds);
     return kOkMsg;
   }
   IfWrongTypeReturn(errcode);
@@ -840,9 +829,7 @@ std::string HDelCommand(__PARAMETERS_LIST) {
   std::vector<std::string> fields(cmds.argv.begin() + 2, cmds.argv.end());
   size_t n_deleted = holder->HashDelField(Key(key), fields, errcode);
   IfWrongTypeReturn(errcode);
-  if (sync && appendable) {
-    appendable->Append(cmds);
-  }
+  AddIntoAppendableDirectly(cmds);
   return PackIntReply(n_deleted);
 }
 
@@ -857,18 +844,17 @@ std::string HExistsCommand(__PARAMETERS_LIST) {
   return PackBoolReply(ans);
 }
 
-#define HKeysValsEntriesCommon(operation) \
-  const std::string &key = cmds.argv[1];  \
-  int errcode;  \
+#define HKeysValsEntriesCommon(operation)      \
+  const std::string &key = cmds.argv[1];       \
+  int errcode;                                 \
   auto keys = holder->operation(key, errcode); \
-  if (errcode == kWrongTypeCode) {  \
-    return kWrongTypeMsg; \
-  } \
-  if (!keys.empty()) {  \
-    return PackArrayMsg(keys);  \
-  } \
-  return kArrayEmptyMsg; \
-
+  if (errcode == kWrongTypeCode) {             \
+    return kWrongTypeMsg;                      \
+  }                                            \
+  if (!keys.empty()) {                         \
+    return PackArrayMsg(keys);                 \
+  }                                            \
+  return kArrayEmptyMsg;
 
 std::string HGetAllCommand(__PARAMETERS_LIST) {
   /* usage: hgetall key */
@@ -910,6 +896,7 @@ std::string SAddCommand(__PARAMETERS_LIST) {
   int n_added = holder->SetAddItem(key, members, errcode);
   IfWrongTypeReturn(errcode);
   IfFailReturn(errcode, PackIntReply(0));
+  AddIntoAppendableDirectly(cmds);
   return PackIntReply(n_added);
 }
 
@@ -953,6 +940,7 @@ std::string SRemCommand(__PARAMETERS_LIST) {
   int errcode;
   auto ret = holder->SetRemoveMembers(key, members, errcode);
   IfWrongTypeReturn(errcode);
+  AddIntoAppendableDirectly(cmds);
   return PackIntReply(ret);
 }
 
