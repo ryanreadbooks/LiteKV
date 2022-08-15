@@ -13,6 +13,7 @@
 #define CONFIG_DEFAULT_APPENDONLY_ENABLED false
 #define CONFIG_DEFAULT_DUMPFILE "dump.aof"
 #define CONFIG_DEFAULT_DUMP_CACHESIZE 1024
+#define CONFIG_DEFAULT_DUMP_FLUSH_INTERVAL 90
 
 #define CONFIG_DEFAULT_LRU_ENABLED false
 #define CONFIG_DEFAULT_LRU_TRIGGER_RATIO 0.9f
@@ -37,6 +38,8 @@ public:
 
   inline int GetDumpCacheSize() const { return dump_cachesize_; }
 
+  inline size_t GetDumpFlushInterval() const { return dump_flush_interval_; }
+
   inline bool LruEnabled() const { return lru_enabled_; }
 
   inline double LruTriggerRatio() const { return lru_trigger_ratio_; }
@@ -59,6 +62,7 @@ private:
   volatile bool appendonly_enabled_ = CONFIG_DEFAULT_APPENDONLY_ENABLED;
   std::string dumpfile_ = CONFIG_DEFAULT_DUMPFILE;
   int dump_cachesize_ = CONFIG_DEFAULT_DUMP_CACHESIZE;
+  size_t dump_flush_interval_ = CONFIG_DEFAULT_DUMP_FLUSH_INTERVAL;
 
   volatile bool lru_enabled_ = CONFIG_DEFAULT_LRU_ENABLED;
   double lru_trigger_ratio_ = CONFIG_DEFAULT_LRU_TRIGGER_RATIO;

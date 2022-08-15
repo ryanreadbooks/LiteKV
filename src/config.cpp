@@ -107,6 +107,12 @@ void Config::Init(std::unordered_map<std::string, std::string> &configs) {
         dump_cachesize_ = CONFIG_DEFAULT_DUMP_CACHESIZE;
       }
       DISPLAY_CONFIG(key, dump_cachesize_);
+    } else if (key == "dump-flush-interval") {
+      if (!CanConvertToUInt64(value, dump_flush_interval_)) {
+        DISPLAY_INVALID_WARN(key, CONFIG_DEFAULT_DUMP_FLUSH_INTERVAL);
+        dump_flush_interval_ = CONFIG_DEFAULT_DUMP_FLUSH_INTERVAL;
+      }
+      DISPLAY_CONFIG(key, dump_flush_interval_);
     } else if (key == "lru-enable") {
       int b = 0;
       if (!CanConvertToInt32(value, b)) {

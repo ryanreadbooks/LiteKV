@@ -4,6 +4,7 @@
 #include <utility>
 #include <unordered_set>
 #include <unordered_map>
+#include <cmath>
 #include "persistence.h"
 #include "net/protocol.h"
 #include "str.h"
@@ -15,20 +16,30 @@
 #define OP_TYPE_SET 4
 #define OP_TYPE_OTHER 5
 
-AppendableFile::AppendableFile(std::string location, size_t cache_size, bool auto_flush)
-    : location_(std::move(location)), cache_max_size_(cache_size),
-      stopped_(false), auto_flush_(auto_flush) {
+AppendableFile::AppendableFile(std::string location, size_t cache_size, bool auto_flush,
+                               size_t flush_interval)
+    : location_(std::move(location)),
+      cache_max_size_(cache_size),
+      stopped_(false),
+      auto_flush_(auto_flush),
+      last_flush_timestamp_(GetCurrentSec()),
+      flush_interval_(flush_interval) {
   cache1_.reserve(cache_size);
   cache2_.reserve(cache_size);
   cur_caches_ = &cache1_;
   backup_caches_ = &cache2_;
   /* open file */
   if (!OpenLocationFile()) {
-    std::cerr << "Can not open appendable file '" << location << "' at initialization.\n";
+    if (!OpenLocationFile()) {
+      /* TODO: is there a better way to handle file open error? */
+      std::cerr << "Can not open appendable file '" << location << "' at initialization. Quit LiteKV.\n";
+      abort();
+    }
   }
   /* if not empty, read and restore data */
   std::thread t(std::bind(&AppendableFile::BackgroundHandler, this));
   worker_.swap(t);
+  std::cout << "AOF BackgroundHandler started...\n";
 }
 
 AppendableFile::~AppendableFile() {
@@ -37,8 +48,8 @@ AppendableFile::~AppendableFile() {
   stopped_ = true;
   auto_flush_ = true;
   cond_.notify_one();
-  worker_.join();
-  Switch();
+  worker_.join(); /* worker will flush backup_cache_ before exitting */
+  Switch(); /* switch to flush cur_cache_ */
   Flush();
   cache1_.clear();
   cache2_.clear();
@@ -49,10 +60,11 @@ AppendableFile::~AppendableFile() {
 void AppendableFile::BackgroundHandler() {
   while (!stopped_) {
     std::unique_lock<std::mutex> lck(mtx_);
-    cond_.wait(lck, [this] {
+    cond_.wait_for(lck, std::chrono::seconds(flush_interval_), [this] {
       return auto_flush_ && (backup_caches_->size() >= cache_max_size_ * 0.80 || stopped_);
     });
     /* worker wakes up and we have lock */
+    last_flush_timestamp_ = GetCurrentSec();
     Flush();
   }
 }
@@ -140,6 +152,13 @@ std::vector<CommandCache> AppendableFile::ReadFromScratch() {
 }
 
 void AppendableFile::Flush() {
+  /* the outsize should make sure we have mutex */
+  if (backup_caches_->empty()) {
+    if (cur_caches_->empty()) {
+      return; /* nothing to flush */
+    }
+    std::swap(cur_caches_, backup_caches_);
+  }
   /* always flush backup_caches_ into disk */
   if (OpenLocationFile()) {
     for (const auto &item : *backup_caches_) {

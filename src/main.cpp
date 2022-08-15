@@ -44,9 +44,11 @@ int main(int argc, char **argv) {
   Engine engine(&container, &configs);
   std::string location = configs.GetDumpFilename();
   size_t cache_size = configs.GetDumpCacheSize();
+  size_t flush_interval = configs.GetDumpFlushInterval();
   if (configs.AppendonlyEnabled()) {
-    history = new AppendableFile(location, cache_size);
+    history = new AppendableFile(location, cache_size, true, flush_interval);
     engine.RestoreFromAppendableFile(&loop, history);
+    history->SetAutoFlush(true);
   }
 
   auto begin = GetCurrentMs();

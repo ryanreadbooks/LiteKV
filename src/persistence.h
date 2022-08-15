@@ -10,6 +10,7 @@
 #include <atomic>
 #include "net/net.h"
 #include "net/commands.h"
+#include "config.h"
 
 constexpr int RESTORE_AOF_READ_BUF_SIZE = 1024 * 64;
 
@@ -19,7 +20,8 @@ class AppendableFile {
   using CmdCacheVector = std::vector<CommandCache>;
 
 public:
-  AppendableFile(std::string location, size_t cache_size = 1024, bool auto_flush = true);
+  AppendableFile(std::string location, size_t cache_size = 1024, bool auto_flush = true,
+                 size_t flush_interval = CONFIG_DEFAULT_DUMP_FLUSH_INTERVAL);
 
   ~AppendableFile();
 
@@ -63,6 +65,8 @@ private:
   std::thread worker_;
   std::atomic<bool> stopped_;
   std::atomic<bool> auto_flush_;
+  uint64_t last_flush_timestamp_; /* last flush unix timestamp */
+  size_t flush_interval_;  /* flush interval, unit: second */
 };
 
 #endif //__PERSISTENCE_H__
