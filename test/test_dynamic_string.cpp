@@ -1,23 +1,25 @@
-#include "../src/str.h"
+#include <gtest/gtest.h>
 #include <iostream>
+#include "../src/str.h"
 
 using namespace std;
 
-int main(int argc, char const *argv[]) {
-
+TEST(DynamicStringTest, BasicTest) {
   DynamicString str1("asd", 3);
   string stl_str = "C++JavaPython";
   DynamicString str2(stl_str);
-  cout << str1 << endl;
-  cout << str2 << endl;
+  EXPECT_EQ(str1, "asd");
+  EXPECT_EQ(str2, "C++JavaPython");
 
   str1.Append(str2);
-  cout << str1 << endl;
-  cout << "str1.Length() = " << str1.Length() << ", str1.Allocated() = " << str1.Allocated() << endl;
-  cout << "str2.Length() = " << str2.Length() << ", str2.Allocated() = " << str2.Allocated() << endl;
+  EXPECT_EQ(str1, "asdC++JavaPython");
+  EXPECT_EQ(str1.Length(), 16);
+  EXPECT_EQ(str1.Allocated(), 25);
+  EXPECT_EQ(str2.Length(), 13);
+  EXPECT_EQ(str2.Allocated(), 14);
   str1.Append("hihi", 4);
-  cout << "str1.Length() = " << str1.Length() << ", str1.Allocated() = " << str1.Allocated() << endl;
-
+  EXPECT_EQ(str1.Length(), 20);
+  EXPECT_EQ(str1.Allocated(), 25);
   for (size_t i = 0; i <= str1.Length(); i++) {
     if (str1[i] == '\0') {
       cout << "\nstr1 ends at " << i << endl;
@@ -27,6 +29,7 @@ int main(int argc, char const *argv[]) {
   }
 
   DynamicString str3("ok\0okok", 7);
+  EXPECT_STREQ(str3.ToStdString().c_str(), "ok\0okok");
   for (size_t i = 0; i < str3.Length(); i++) {
     if (str3[i] == '\0') {
       cout << "~";
@@ -45,81 +48,76 @@ int main(int argc, char const *argv[]) {
   // compare test
   DynamicString c1("hello", 5);
   DynamicString c2("hello", 5);
-
-  if (c1 == c2) {
-    cout << "c1 == c2\n";
-  }
-
+  EXPECT_TRUE(c1 == c2);
   DynamicString c3("ehllo", 5);
-  if (c1 != c3) {
-    cout << "c1 != c3\n";
-  }
+  EXPECT_TRUE(c1 != c3);
   c3.Clear();
-  if (c3.Empty()) {
-    cout << c3 << "is empty ||||\n";
-  }
+  EXPECT_TRUE(c3.Empty());
 
   // test reset string value
   c2.Reset("are you ok? I am really fine!!!");
   cout << "c2 = " << c2 << endl;
-  cout << "c2.Length() = " << c2.Length() << ", c2.Allocated() = " << c2.Allocated() << endl;
-
+  EXPECT_EQ(c2, "are you ok? I am really fine!!!");
+  EXPECT_EQ(c2.Length(), 31);
+  EXPECT_EQ(c2.Allocated(), 47);
   c2.Reset("okok");
-  cout << "c2 = " << c2 << endl;
-  cout << "c2.Length() = " << c2.Length() << ", c2.Allocated() = " << c2.Allocated() << endl;
+  EXPECT_EQ(c2, "okok");
+  EXPECT_EQ(c2.Length(), 4);
+  EXPECT_EQ(c2.Allocated(), 47);
   c2.Shrink();
-  cout << "c2 = " << c2 << endl;
-  cout << "c2.Length() = " << c2.Length() << ", c2.Allocated() = " << c2.Allocated() << endl;
+  EXPECT_EQ(c2, "okok");
+  EXPECT_EQ(c2.Length(), 4);
+  EXPECT_EQ(c2.Allocated(), 5);
   std::string cst2("monday");
   c2.Append(cst2);
-  cout << "c2 = " << c2 << endl;
-  cout << "c2.Length() = " << c2.Length() << ", c2.Allocated() = " << c2.Allocated() << endl;
+  EXPECT_EQ(c2, "okokmonday");
+  EXPECT_EQ(c2.Length(), 10);
+  EXPECT_EQ(c2.Allocated(), 16);
 
   DynamicString cstr3;
   cstr3.Clear();
-  cout << "Cleared empty str\n";
   cstr3.Reset("okok");
-  cout << cstr3 << endl;
-  cout << "cstr3.Length() = " << cstr3.Length() << ", cstr3.Allocated() = " << cstr3.Allocated() << endl;
+  EXPECT_EQ(cstr3, "okok");
+  EXPECT_EQ(cstr3.Length(), 4);
+  EXPECT_EQ(cstr3.Allocated(), 5);
 
   DynamicString cstr4;
   cstr4.Append("abc");
-  cout << cstr4 << endl;
-  cout << "cstr4.Length() = " << cstr4.Length() << ", cstr4.Allocated() = " << cstr4.Allocated() << endl;
+  EXPECT_EQ(cstr4.Length(), 3);
+  EXPECT_EQ(cstr4.Allocated(), 4);
 
   cstr4.Append("abcefg");
-  cout << cstr4 << endl;
-  cout << "cstr4.Length() = " << cstr4.Length() << ", cstr4.Allocated() = " << cstr4.Allocated() << endl;
+  EXPECT_EQ(cstr4.Length(), 9);
+  EXPECT_EQ(cstr4.Allocated(), 14);
 
-  auto func = []() -> DynamicString
-  {
-    return DynamicString();
-  };
+  auto func = []() -> DynamicString { return DynamicString(); };
 
   DynamicString cstr5;
   DynamicString cstr6 = func();
-  cout << "cstr5 = " << cstr5 << endl;
+  EXPECT_TRUE(cstr5.Empty());
+  EXPECT_TRUE(cstr6.Empty());
 
   // test reset
   DynamicString ds1("10");
-  cout << ds1 << endl;
   ds1.Clear();
-  cout << ds1 << endl;
   ds1.Reset("changed");
-  cout << ds1 << endl;
+  EXPECT_EQ(ds1, "changed");
 
   // test empty string and null string
   // no memory allocated
   DynamicString empty;
-  cout << empty.Length() << ", " << empty.Allocated() << endl;
+  EXPECT_TRUE(empty.Length() == 0 && empty.Allocated() == 0);
 
   // memory allocated even for empty str
-  DynamicString empty2("",0);
-  cout << empty2.Length() << ", " << empty2.Allocated() << endl;
+  DynamicString empty2("", 0);
+  EXPECT_TRUE(empty2.Length() == 0 && empty2.Allocated() == 1);
 
   // memory allocated even for empty str
   DynamicString empty3("");
-  cout << empty3.Length() << ", " << empty3.Allocated() << endl;
+  EXPECT_TRUE(empty3.Length() == 0 && empty3.Allocated() == 1);
+}
 
-  return 0;
+int main(int argc, char *argv[]) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
 }

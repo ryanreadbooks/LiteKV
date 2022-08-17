@@ -1,6 +1,7 @@
 CXX = g++
 CXXFLAGS = -std=c++11 -Wall -ggdb -Wno-unused
 LINKS = -lpthread
+TEST_LINKS = -lgtest
 
 BUILD_DIR = ./build
 BIN_DIR = ./bin
@@ -61,7 +62,7 @@ $(BENCHMARK_TARGETS) : $(BIN_DIR)/% : $(BENCHMARK_TEST_SRC_DIR)/%.cpp $(OBJ) $(I
 	@echo "Done generating benchmark test targets"
 
 $(TEST_TARGETS) : $(BIN_DIR)/% : $(TEST_SRC_DIR)/%.cpp $(OBJ) $(INC)
-	$(CXX) $(CXXFLAGS) $(OBJ) $< -o $@ $(LINKS)
+	$(CXX) $(CXXFLAGS) $(OBJ) $< -o $@ $(LINKS) $(TEST_LINKS)
 	@echo "Done generating test targets"
 
 $(KVMAIN_TARGET) : $(OBJ) $(INC)

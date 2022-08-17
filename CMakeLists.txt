@@ -61,6 +61,7 @@ add_executable_and_link(litekv-benchmark "tools/litekv-benchmark.cpp" "${SRC}" "
 add_executable_and_link(kvmain "src/main.cpp" "${SRC}" "${LIBS}")
 
 if (BUILD_TESTS)
+  enable_testing()
   add_subdirectory(test)
 endif(BUILD_TESTS)
 

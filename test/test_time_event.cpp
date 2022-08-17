@@ -1,6 +1,9 @@
+#include <chrono>
+#include <condition_variable>
 #include <iostream>
+#include <mutex>
+#include <thread>
 
-#include "../src/net/time_event.h"
 #include "../src/net/net.h"
 
 void Func1() {
@@ -24,7 +27,6 @@ void Func4() {
 }
 
 int main() {
-
   EventLoop loop;
   auto now = GetCurrentMs();
   std::cout << "Now   is " << now << std::endl;
@@ -34,9 +36,18 @@ int main() {
   std::cout << loop.AddTimeEvent(2000, std::function<void()>(Func2), 3) << std::endl;
   /* this one runs forever */
   std::cout << loop.AddTimeEvent(1000, Func3, FIRE_FOREVER)->id << std::endl;
-  std::cout << loop.AddTimeEvent(10000, Func4, 2)->id << std::endl;
+  //  std::cout << loop.AddTimeEvent(10000, Func4, 2)->id << std::endl;
+
+  std::mutex mtx;
+  std::condition_variable cond;
+  // this thread is used to exit the event loop
+  std::thread cleanup_worker([&]() {
+    std::unique_lock<std::mutex> lck(mtx);
+    cond.wait_for(lck, std::chrono::seconds(5), [] { return false; });
+    loop.stopped.store(true);
+  });
 
   loop.Loop();
-
+  cleanup_worker.join();
   return 0;
 }
