@@ -8,6 +8,17 @@
 #include <cstring>
 
 /**
+ * @brief Bernstein's hash for string
+ */
+static size_t Time33Hash(const char *str, size_t len) {
+  unsigned long hash = 5381;
+  for (int i = 0; i < len; ++i) {
+    hash = ((hash << 5) + hash) + (unsigned)str[i];
+  }
+  return hash;
+}
+
+/**
  * @brief Static sized string
  * 
  */
@@ -88,7 +99,7 @@ public:
   }
 
   size_t Hash() const {
-    return std::hash<std::string>()(ToStdString());
+    return Time33Hash(buf_, len_);
   }
 
 private:
@@ -189,7 +200,7 @@ public:
   };
 
   size_t Hash() const {
-    return std::hash<std::string>()(ToStdString());
+    return Time33Hash(buf_, len_);
   }
 
   inline const char *Data() const { return buf_; }
