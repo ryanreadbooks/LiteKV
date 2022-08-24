@@ -2,8 +2,9 @@
 #include <sstream>
 #include <random>
 #include <algorithm>
+#ifdef TCMALLOC_FOUND
 #include <gperftools/malloc_extension.h>
-
+#endif
 #include "core.h"
 
 /* maximum time in lru eviction loop, unit ms */
