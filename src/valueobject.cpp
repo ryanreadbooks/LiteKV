@@ -1,4 +1,30 @@
 #include "valueobject.h"
+#include <typeinfo>
+
+size_t ValueObject::Serialize(std::vector<char> &buf) {
+  if (ptr == nullptr) {
+    return 0;
+  }
+  /* we encode this value as variable integer */
+  if (type == OBJECT_INT) {
+    unsigned char tmp[10] = {0};
+    /* encode signed 64-bit integer the same way as encoding unsigned 64-bit integer */
+    uint8_t enc_len = EncodeVarSignedInt64(ToInt64(), tmp);
+    buf.insert(buf.end(), tmp, tmp + enc_len);
+  } else {
+    if (type == OBJECT_STRING || type == OBJECT_LIST) {
+      Serializable *parent = reinterpret_cast<Serializable *>(ptr);
+      parent->Serialize(buf);
+    } else {
+      if (type == OBJECT_HASH) {
+        reinterpret_cast<HashDict *>(ptr)->Serialize(buf);
+      } else if (type == OBJECT_SET) {
+        reinterpret_cast<HashSet *>(ptr)->Serialize(buf);
+      }
+    }
+  }
+  return buf.size();
+}
 
 // FIXME: use macro to remove code redundancy
 

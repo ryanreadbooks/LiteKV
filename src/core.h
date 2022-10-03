@@ -13,12 +13,15 @@
 #include "dlist.h"
 #include "hashset.h"
 #include "valueobject.h"
+#include "lkvdb.h"
 
 static constexpr int EVICTION_POLICY_RANDOM = 0;
 static constexpr int EVICTION_POLICY_LRU = 1;
 
 static constexpr int kBucketSize = 512;
 static constexpr int kNumEvictCandidates = 16;
+
+static std::unordered_map<std::string, TimeEvent *> sExpiresMap;
 
 using HashMap = std::unordered_map<Key, ValueObjectPtr, KeyHasher, KeyEqual>;
 using LockGuard = std::unique_lock<std::mutex>;
@@ -344,6 +347,13 @@ public:
   size_t SetGetMemberCount(const std::string &key, int &errcode) {
     return SetGetMemberCount(Key(key), errcode);
   }
+
+  /**
+   * @brief generate a memory status snapshot for persistence
+   * 
+   * @param buf the buffer for storing the binary data
+   */
+  void Snapshot(std::vector<char> &buf);
 
 private:
   inline Bucket &GetBucket(const Key &key) {

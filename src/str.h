@@ -7,22 +7,14 @@
 #include <functional>
 #include <cstring>
 
-/**
- * @brief Bernstein's hash for string
- */
-static size_t Time33Hash(const char *str, size_t len) {
-  unsigned long hash = 5381;
-  for (int i = 0; i < len; ++i) {
-    hash = ((hash << 5) + hash) + (unsigned)str[i];
-  }
-  return hash;
-}
+#include "encoding.h"
+#include "serializable.h"
 
 /**
  * @brief Static sized string
  * 
  */
-class StaticString {
+class StaticString : public Serializable {
 public:
   explicit StaticString() : len_(0), buf_(nullptr) {}
 
@@ -102,6 +94,8 @@ public:
     return Time33Hash(buf_, len_);
   }
 
+  size_t Serialize(std::vector<char> &buf) const override;
+
 private:
   size_t len_ = 0;
   char *buf_ = nullptr;
@@ -129,7 +123,7 @@ const static float kBufGrowFactor = 1.5;
  * @brief Dynamic sized string
  * 
  */
-class DynamicString {
+class DynamicString : public Serializable {
 public:
   DynamicString() = default;
 
@@ -232,6 +226,8 @@ public:
   void Reset(const DynamicString &str);
 
   void Shrink();
+
+  size_t Serialize(std::vector<char> &buf) const override;
 
   inline std::string ToStdString() const {
     return std::string(buf_, len_);

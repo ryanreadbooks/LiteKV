@@ -5,6 +5,8 @@
 #include "hash.h"
 #include "rehashable.h"
 #include "str.h"
+#include "serializable.h"
+#include "encoding.h"
 
 class HashTable;
 class HashDict;
@@ -62,7 +64,7 @@ public:
 };
 
 /* implementation for hash structure */
-class HashDict : public Rehashable<HashTable> {
+class HashDict : public Rehashable<HashTable>, public Serializable {
 public:
   explicit HashDict(double max_load_factor = 1.0)
       : Rehashable<HashTable>(max_load_factor) {}
@@ -93,6 +95,8 @@ public:
    * Get value given specific key
    */
   HEntryVal &At(const std::string &key) { return At(HEntryKey(key)); }
+
+  size_t Serialize(std::vector<char> &buf) const override;
 };
 
 #endif  // __HASHDICT_H__

@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 
+#include "serializable.h"
 #include "dlist.h"
 #include "hashdict.h"
 #include "hashset.h"
@@ -79,6 +80,8 @@ struct ValueObject {
       FreePtr();
     }
   }
+
+  size_t Serialize(std::vector<char> &buf);
 };
 
 ValueObject *ConstructIntObj(int64_t intval);

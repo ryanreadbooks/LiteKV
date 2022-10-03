@@ -66,7 +66,6 @@ std::unordered_map<std::string, CommandHandler> Engine::sOpCommandMap = {
     {"unsubscribe", PubSubUnsubscribeCommand},  /* unsubscribe from specific channels */
 };
 
-static std::unordered_map<std::string, TimeEvent *> sExpiresMap;
 static int sEvictPolicy = EVICTION_POLICY_RANDOM;
 
 #define IfFailReturn(errcode, retval) \

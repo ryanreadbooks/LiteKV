@@ -30,6 +30,7 @@ set(SRC
     src/hashset.cpp
     src/persistence.cpp
     src/config.cpp
+    src/encoding.cpp
     src/net/addr.cpp
     src/net/net.cpp
     src/net/server.cpp

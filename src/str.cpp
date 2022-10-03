@@ -1,13 +1,33 @@
-#include <iostream>
 #include <exception>
+#include <iostream>
+#include <vector>
 #include "str.h"
 
-void DynamicString::Append(const char *str, uint32_t addlen) {
+static size_t SerializeCharBuf(char* data, size_t len, std::vector<char>& buf) {
+  unsigned char enc[10] = {0};
+  size_t cnt = EncodeVarUnsignedInt64(len, enc);
+  size_t size = cnt + len;
+  auto l = sizeof(char) * size;
+  buf.reserve(l);
+  /* fill buffer with binary data representing this string object */
+  buf.insert(buf.end(), enc, enc + cnt);
+  buf.insert(buf.end(), data, data + len);
+  return buf.size();
+}
+
+size_t StaticString::Serialize(std::vector<char>& buf) const {
+  if (len_ == 0) {
+    return 0;
+  }
+  return SerializeCharBuf(buf_, len_, buf);
+}
+
+void DynamicString::Append(const char* str, uint32_t addlen) {
   if (buf_ == nullptr) {
     /* allocate buffer */
     alloc_ = sizeof(char) * (addlen + 1);
-    buf_ = (char *)malloc(alloc_);
-    if (buf_ == nullptr) {  /* malloc fail */
+    buf_ = (char*)malloc(alloc_);
+    if (buf_ == nullptr) { /* malloc fail */
       buf_ = nullptr;
       return;
     }
@@ -18,7 +38,7 @@ void DynamicString::Append(const char *str, uint32_t addlen) {
   } else {
     /* free space not enough, allocate more */
     alloc_ = uint32_t((len_ + addlen) * kBufGrowFactor + 1);
-    char *tmp = (char *)realloc(buf_, alloc_);
+    char* tmp = (char*)realloc(buf_, alloc_);
     if (tmp == nullptr) {
       return;
     }
@@ -31,17 +51,13 @@ void DynamicString::Append(const char *str, uint32_t addlen) {
   buf_[len_] = '\0';
 }
 
-void DynamicString::Append(const std::string &str) {
-  Append(str.data(), str.size());
-}
+void DynamicString::Append(const std::string& str) { Append(str.data(), str.size()); }
 
-void DynamicString::Append(const DynamicString &ds) {
-  Append(ds.Data(), ds.Length());
-}
+void DynamicString::Append(const DynamicString& ds) { Append(ds.Data(), ds.Length()); }
 
 void DynamicString::Clear() {
   /* set buffer to zero, but do not free space */
-  if (len_ == 0 || alloc_ == 0 || buf_ ==  nullptr) {
+  if (len_ == 0 || alloc_ == 0 || buf_ == nullptr) {
     return;
   }
   len_ = 0;
@@ -49,10 +65,10 @@ void DynamicString::Clear() {
   buf_[len_] = '\0';
 }
 
-void DynamicString::Reset(const char *str, uint32_t len) {
+void DynamicString::Reset(const char* str, uint32_t len) {
   if (buf_ == nullptr) {
     uint32_t allocated = len + 1;
-    buf_ = (char *)malloc(sizeof(char) * allocated);
+    buf_ = (char*)malloc(sizeof(char) * allocated);
     if (buf_ == nullptr) {
       buf_ = nullptr;
       return;
@@ -63,23 +79,26 @@ void DynamicString::Reset(const char *str, uint32_t len) {
   Append(str, len);
 }
 
-void DynamicString::Reset(const std::string &str) {
-  Reset(str.data(), str.size());
-}
+void DynamicString::Reset(const std::string& str) { Reset(str.data(), str.size()); }
 
-void DynamicString::Reset(const DynamicString& str) {
-  Reset(str.buf_, str.len_);
-}
+void DynamicString::Reset(const DynamicString& str) { Reset(str.buf_, str.len_); }
 
 void DynamicString::Shrink() {
   if (buf_) {
-    char *tmp = (char *)realloc(buf_, len_ + 1);
+    char* tmp = (char*)realloc(buf_, len_ + 1);
     if (tmp == NULL) {
       return;
     }
     alloc_ = len_ + 1;
     buf_ = tmp;
   }
+}
+
+size_t DynamicString::Serialize(std::vector<char>& buf) const {
+  if (len_ == 0) {
+    return 0;
+  }
+  return SerializeCharBuf(buf_, len_, buf);
 }
 
 int64_t DynamicString::TryConvertToInt64() const {
@@ -92,7 +111,7 @@ int64_t DynamicString::TryConvertToInt64() const {
   if (len_ > 20) {
     throw std::overflow_error("string length too large to convert to int");
   }
-  char *tmp;
+  char* tmp;
   int64_t ans = strtoll(buf_, &tmp, 10);
   /* check if number overflow */
   if ((ans == INT64_MAX && errno == ERANGE) || (ans == INT64_MIN && errno == ERANGE)) {
@@ -110,7 +129,7 @@ bool CanConvertToInt64(const std::string& str, int64_t& ans) {
   }
   try {
     int64_t tmp = std::stoll(str);
-    if (std::to_string(tmp)== str) {
+    if (std::to_string(tmp) == str) {
       ans = tmp;
       return true;
     }
@@ -126,7 +145,7 @@ bool CanConvertToInt32(const std::string& str, int& ans) {
   }
   try {
     int tmp = std::stoi(str);
-    if (std::to_string(tmp)== str) {
+    if (std::to_string(tmp) == str) {
       ans = tmp;
       return true;
     }

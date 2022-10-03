@@ -285,6 +285,38 @@ void DList::FreeRedundantNodes() {
   }
 }
 
+size_t DList::Serialize(std::vector<char> &buf) const {
+  if (Empty()) {
+    return 0;
+  }
+  unsigned char len_enc_buf[10] = {0};
+  auto len_buf_size = EncodeVarUnsignedInt64(len_, len_enc_buf);
+
+  /* put length of this list into buffer */
+  buf.insert(buf.end(), len_enc_buf, len_enc_buf + len_buf_size);
+
+  /* iterate every node every element and put binary data into buffer */
+  Node *tmp = begin_.node;
+  ElemType *elem = begin_.ptr;
+  std::vector<char> tmp_buf;
+  tmp_buf.reserve(16);
+  while (tmp && tmp->occupied > 0 && elem) {
+    /* all occupied nodes are need */
+    for (int i = 0; i < tmp->occupied; i++) {
+      /* put into buffer */
+      elem->Serialize(tmp_buf);
+      buf.insert(buf.end(), tmp_buf.begin(), tmp_buf.end());
+      tmp_buf.clear();
+      elem++;
+    }
+    tmp = tmp->next;
+    if (tmp) {
+      elem = tmp->data;
+    }
+  }
+  return buf.size();
+}
+
 std::tuple<Node*, int, int> DList::NodeAtIndex(size_t idx) {
   if (begin_.node->occupied > idx) {
     /* index does not need to jump cross nodes */

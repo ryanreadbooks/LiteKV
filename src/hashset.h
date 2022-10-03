@@ -3,6 +3,8 @@
 
 #include "hash.h"
 #include "rehashable.h"
+#include "serializable.h"
+#include "encoding.h"
 
 class HashSetImpl;
 class HashSet;
@@ -48,7 +50,7 @@ public:
 };
 
 /* set implementation based on HashSetImpl */
-class HashSet : public Rehashable<HashSetImpl> {
+class HashSet : public Rehashable<HashSetImpl>, public Serializable{
 public:
   explicit HashSet(double max_load_factor = 1.0) : Rehashable<HashSetImpl>(max_load_factor) {}
 
@@ -57,6 +59,8 @@ public:
   int Insert(const std::string& item) {
     return Insert(HEntryKey(item));
   }
+
+  size_t Serialize(std::vector<char>& buf) const override;
 };
 
 #endif // __HASHSET_H__
