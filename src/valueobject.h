@@ -17,11 +17,11 @@ typedef StaticString Key;
 typedef std::shared_ptr<StaticString> KeyPtr;
 typedef std::shared_ptr<ValueObject> ValueObjectPtr;
 
-#define OBJECT_INT 1    /* int object */
-#define OBJECT_STRING 2 /* string object */
-#define OBJECT_LIST 3   /* list object */
-#define OBJECT_HASH 4   /* hash object */
-#define OBJECT_SET 5    /* set object */
+#define OBJECT_INT LKVBD_TYPE_INT       /* int object */
+#define OBJECT_STRING LKVBD_TYPE_STRING /* string object */
+#define OBJECT_LIST LKVBD_TYPE_LIST     /* list object */
+#define OBJECT_HASH LKVBD_TYPE_HASH     /* hash object */
+#define OBJECT_SET LKVBD_TYPE_SET       /* set object */
 
 /**
  * @brief wrapper for value stored

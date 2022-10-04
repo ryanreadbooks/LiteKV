@@ -1,5 +1,5 @@
-#include <cstring>
 #include "encoding.h"
+#include <cstring>
 
 size_t Time33Hash(const char* str, size_t len) {
   unsigned long hash = 5381;
@@ -10,6 +10,7 @@ size_t Time33Hash(const char* str, size_t len) {
 }
 
 uint8_t EncodeVarUnsignedInt64(uint64_t value, unsigned char* buf) {
+  if (buf == nullptr) return 0;
   uint8_t* ptr = reinterpret_cast<uint8_t*>(buf);
   uint8_t cnt = 0;
   while (value >= 0b10000000) {
@@ -23,6 +24,7 @@ uint8_t EncodeVarUnsignedInt64(uint64_t value, unsigned char* buf) {
 }
 
 uint64_t DecodeVarUnsignedInt64(unsigned char* enc) {
+  if (enc == nullptr) return 0;
   uint64_t value = 0;
   uint8_t i = 0; /* uint64_t can be encoded in 1~10 bytes */
   for (uint32_t shift = 0; shift <= 63 && i < 10; shift += 7, ++i) {
@@ -68,6 +70,16 @@ uint8_t EncodeVarSignedInt64(int64_t value, unsigned char* buf) {
 int64_t DecodeVarSignedInt64(unsigned char* buf) { return DecodeVarUnsignedInt64(buf); }
 
 void EncodeFixed64BitInteger(int64_t value, unsigned char* buf) {
+  if (buf == nullptr) return;
   unsigned char* ptr = reinterpret_cast<unsigned char*>(&value);
-  memcpy(buf, ptr, 8);
+  memcpy(buf, ptr, 8);  // FIXME is this correct in big endian?
+}
+
+int64_t DecodeFixed64BitInteger(unsigned char* buf) {
+  if (buf == nullptr) return 0;
+  /* little endian */
+  int64_t value;
+  char* ptr = reinterpret_cast<char*>(&value);
+  memcpy(ptr, buf, 8);  // FIXME is this correct in big endian?
+  return value;
 }

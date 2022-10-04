@@ -4,6 +4,10 @@
 #include "str.h"
 
 static size_t SerializeCharBuf(char* data, size_t len, std::vector<char>& buf) {
+  if (len == 0) {
+    buf.emplace_back('\0');
+    return 1;
+  }
   unsigned char enc[10] = {0};
   size_t cnt = EncodeVarUnsignedInt64(len, enc);
   size_t size = cnt + len;
@@ -16,9 +20,6 @@ static size_t SerializeCharBuf(char* data, size_t len, std::vector<char>& buf) {
 }
 
 size_t StaticString::Serialize(std::vector<char>& buf) const {
-  if (len_ == 0) {
-    return 0;
-  }
   return SerializeCharBuf(buf_, len_, buf);
 }
 
@@ -95,9 +96,6 @@ void DynamicString::Shrink() {
 }
 
 size_t DynamicString::Serialize(std::vector<char>& buf) const {
-  if (len_ == 0) {
-    return 0;
-  }
   return SerializeCharBuf(buf_, len_, buf);
 }
 

@@ -136,9 +136,9 @@ size_t HashDict::Serialize(std::vector<char> &buf) const {
   /* put number of entry first */
   buf.insert(buf.end(), len_enc_buf, len_enc_buf + len_enc_size);
 
-  std::vector<char> tmp_buf_key, tmp_buf_val;
-  tmp_buf_key.reserve(16);
-  tmp_buf_val.reserve(16);
+  // std::vector<char> tmp_buf_key, tmp_buf_val;
+  // tmp_buf_key.reserve(16);
+  // tmp_buf_val.reserve(16);
 
   /* iterate every entries and serialize them to binary data */
   for (auto &entry : AllEntries()) {

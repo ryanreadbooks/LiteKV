@@ -47,6 +47,8 @@ public:
 
   KVContainer(const KVContainer &) = delete;
 
+  KVContainer(KVContainer &&) = delete;
+
   KVContainer &operator=(const KVContainer &) = delete;
 
   ~KVContainer() {}

@@ -4,6 +4,7 @@
 #include <iostream>
 #include <thread>
 #include <vector>
+#include "../src/net/net.h"
 #include "../src/core.h"
 #include "../src/dlist.h"
 #include "../src/encoding.h"
@@ -23,6 +24,11 @@ TEST(SerializableTest, StaticStringTest) {
     EXPECT_EQ(bin[i], buf[i]);
   }
   printf("\n");
+
+  StaticString s2;
+  bin.clear();
+  s2.Serialize(bin);
+  std::cout << "bin.size() = " << bin.size() << '\n';
 }
 
 TEST(SerializableTest, DynamicStringTest) {
@@ -120,10 +126,13 @@ TEST(SerializableTest, KVContainerTest) {
   int errcode;
    kv.SetInt("int1", 0x01234567abcdef98);
    kv.SetInt("int2", -20201003);
+   kv.SetInt("int3", 0);
+   kv.SetInt("int4", 100);
 
    kv.SetString("str1", "hello");
    kv.SetString("str2", "world");
    kv.SetString("str3", "abcdef");
+   kv.SetString("str4", "");
 
    kv.RightPush("list1", "789", errcode);
    kv.RightPush("list1", "ful", errcode);
@@ -151,9 +160,36 @@ TEST(SerializableTest, KVContainerTest) {
   std::vector<char> bin;
   kv.Snapshot(bin);
 
-  std::ofstream ofs("kvtmp", std::ios::out | std::ios::trunc);
-  ofs.write(bin.data(), bin.size());
-  ofs.close();
+  // save
+  LiteKVSave("dump.lkvdb", bin);
+}
+
+void LoadCallback(size_t& total, size_t& progress) {
+  std::cout << "Total: " << total << ", Progress -> " << progress << '\n';
+}
+
+TEST(SerializableTest, LKVDbLoadTest) {
+  std::string src = "dump.lkvdb";
+  KVContainer holder;
+  EventLoop loop;
+  LiteKVLoad(src, &holder, &loop, LoadCallback);
+  auto vec = holder.Overview();
+  EXPECT_STREQ(vec[0].ToStdString().c_str(), "Number of int:");
+  EXPECT_STREQ(vec[1].ToStdString().c_str(), "4");
+  EXPECT_STREQ(vec[2].ToStdString().c_str(), "Number of string:");
+  EXPECT_STREQ(vec[3].ToStdString().c_str(), "4");
+  EXPECT_STREQ(vec[4].ToStdString().c_str(), "Number of list:");
+  EXPECT_STREQ(vec[5].ToStdString().c_str(), "2");
+  EXPECT_STREQ(vec[6].ToStdString().c_str(), "Number of elements in list:");
+  EXPECT_STREQ(vec[7].ToStdString().c_str(), "7");
+  EXPECT_STREQ(vec[8].ToStdString().c_str(), "Number of hash:");
+  EXPECT_STREQ(vec[9].ToStdString().c_str(), "2");
+  EXPECT_STREQ(vec[10].ToStdString().c_str(), "Number of elements in hash:");
+  EXPECT_STREQ(vec[11].ToStdString().c_str(), "5");
+  EXPECT_STREQ(vec[12].ToStdString().c_str(), "Number of set:");
+  EXPECT_STREQ(vec[13].ToStdString().c_str(), "3");
+  EXPECT_STREQ(vec[14].ToStdString().c_str(), "Number of elements in set:");
+  EXPECT_STREQ(vec[15].ToStdString().c_str(), "8");
 }
 
 int main(int argc, char** argv) {

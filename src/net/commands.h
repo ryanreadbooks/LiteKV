@@ -52,6 +52,12 @@ class Engine {
 public:
   explicit Engine(KVContainer *container, Config *config);
 
+  Engine(const Engine &) = delete;
+
+  Engine(Engine &&) = delete;
+
+  Engine &operator=(const Engine &) = delete;
+
   ~Engine();
 
   /**

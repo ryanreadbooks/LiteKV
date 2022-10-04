@@ -1,39 +1,55 @@
 #ifndef __STR_H__
 #define __STR_H__
 
+#include <cstring>
+#include <functional>
 #include <iostream>
 #include <memory>
 #include <string>
-#include <functional>
-#include <cstring>
 
 #include "encoding.h"
 #include "serializable.h"
 
 /**
  * @brief Static sized string
- * 
+ *
  */
 class StaticString : public Serializable {
 public:
   explicit StaticString() : len_(0), buf_(nullptr) {}
 
-  explicit StaticString(const char *str) :
-      len_(strlen(str)) {
+  explicit StaticString(const char *str) : len_(strlen(str)) {
     if (str != nullptr) {
       /* alloc and copy memory to buf */
-      buf_ = (char *) malloc(len_ + 1);
+      buf_ = (char *)malloc(len_ + 1);
       memcpy(buf_, str, len_);
       buf_[len_] = '\0';
     }
   }
 
-  explicit StaticString(const std::string &str) :
-      StaticString(str.c_str()) {}
+  explicit StaticString(const char *str, size_t len) {
+    if (str != nullptr) {
+      buf_ = (char *)malloc(len + 1);
+      len_ = len;
+      memcpy(buf_, str, len_);
+      buf_[len_] = '\0';
+    }
+  }
+
+  StaticString(StaticString &&other) noexcept {
+    if (other.buf_ != nullptr) {
+      buf_ = other.buf_;
+      len_ = other.len_;
+      other.buf_ = nullptr;
+      other.len_ = 0;
+    }
+  }
+
+  explicit StaticString(const std::string &str) : StaticString(str.c_str()) {}
 
   StaticString(const StaticString &other) {
     if (other.buf_ != nullptr) {
-      buf_ = (char *) malloc(other.len_ + 1);
+      buf_ = (char *)malloc(other.len_ + 1);
       memcpy(buf_, other.buf_, other.len_);
       len_ = other.len_;
       buf_[len_] = '\0';
@@ -44,7 +60,7 @@ public:
     if (this == &other) {
       return *this;
     }
-    char *buf = (char *) malloc(other.len_ + 1);
+    char *buf = (char *)malloc(other.len_ + 1);
     if (buf != nullptr) {
       memcpy(buf, other.buf_, other.len_);
       len_ = other.len_;
@@ -65,6 +81,8 @@ public:
 
   inline size_t Length() const { return len_; }
 
+  inline bool Empty() const { return len_ == 0 && buf_ == nullptr; }
+
   inline const char *Data() const { return buf_; }
 
   std::string ToStdString() const { return std::string(buf_); }
@@ -77,22 +95,16 @@ public:
     return strcmp(buf_, other.buf_) != 0 && len_ != other.len_;
   }
 
-  bool operator<(const StaticString &other) const {
-    return strcmp(buf_, other.buf_) == -1;
-  }
+  bool operator<(const StaticString &other) const { return strcmp(buf_, other.buf_) == -1; }
 
-  bool operator>(const StaticString &other) const {
-    return strcmp(buf_, other.buf_) == 1;
-  }
+  bool operator>(const StaticString &other) const { return strcmp(buf_, other.buf_) == 1; }
 
   friend std::ostream &operator<<(std::ostream &ss, const StaticString &s) {
     ss << s.Data();
     return ss;
   }
 
-  size_t Hash() const {
-    return Time33Hash(buf_, len_);
-  }
+  size_t Hash() const { return Time33Hash(buf_, len_); }
 
   size_t Serialize(std::vector<char> &buf) const override;
 
@@ -101,27 +113,21 @@ private:
   char *buf_ = nullptr;
 };
 
-
 struct KeyHasher {
-  std::size_t operator()(const StaticString &key) const {
-    return key.Hash();
-  }
+  std::size_t operator()(const StaticString &key) const { return key.Hash(); }
 };
 
 struct KeyEqual {
-  bool operator()(const StaticString &a, const StaticString &b) const {
-    return a == b;
-  }
+  bool operator()(const StaticString &a, const StaticString &b) const { return a == b; }
 };
 
 typedef std::shared_ptr<StaticString> StaticStringPtr;
 
 const static float kBufGrowFactor = 1.5;
 
-
 /**
  * @brief Dynamic sized string
- * 
+ *
  */
 class DynamicString : public Serializable {
 public:
@@ -130,8 +136,8 @@ public:
   DynamicString(const char *str, uint32_t len) {
     if (str != nullptr) {
       /* alloc and copy memory to buf */
-      alloc_ = (uint32_t) (sizeof(char) * (len + 1)); /* reserve more space */
-      buf_ = (char *) malloc(alloc_);
+      alloc_ = (uint32_t)(sizeof(char) * (len + 1)); /* reserve more space */
+      buf_ = (char *)malloc(alloc_);
       len_ = len;
       memcpy(buf_, str, len);
       buf_[len] = '\0';
@@ -139,8 +145,8 @@ public:
   }
 
   explicit DynamicString(const std::string &str) {
-    alloc_ = (uint32_t) (str.size() + 1);
-    buf_ = (char *) malloc(alloc_);
+    alloc_ = (uint32_t)(str.size() + 1);
+    buf_ = (char *)malloc(alloc_);
     len_ = str.size();
     memcpy(buf_, str.data(), len_);
     buf_[len_] = '\0';
@@ -169,7 +175,7 @@ public:
   DynamicString(const DynamicString &x) {
     /* construct totally new object with new allocated space */
     if (x.buf_ != nullptr) {
-      buf_ = (char *) malloc(x.alloc_);
+      buf_ = (char *)malloc(x.alloc_);
       memcpy(buf_, x.buf_, x.len_);
       len_ = x.len_;
       alloc_ = x.alloc_;
@@ -181,7 +187,7 @@ public:
     if (this == &x) {
       return *this;
     }
-    char *buf = (char *) malloc(x.alloc_);
+    char *buf = (char *)malloc(x.alloc_);
     if (buf != nullptr) {
       memcpy(buf, x.buf_, x.len_);
       alloc_ = x.alloc_;
@@ -193,9 +199,7 @@ public:
     return *this;
   };
 
-  size_t Hash() const {
-    return Time33Hash(buf_, len_);
-  }
+  size_t Hash() const { return Time33Hash(buf_, len_); }
 
   inline const char *Data() const { return buf_; }
 
@@ -229,9 +233,7 @@ public:
 
   size_t Serialize(std::vector<char> &buf) const override;
 
-  inline std::string ToStdString() const {
-    return std::string(buf_, len_);
-  }
+  inline std::string ToStdString() const { return std::string(buf_, len_); }
 
   int64_t TryConvertToInt64() const;
 
@@ -246,12 +248,12 @@ public:
 
   char &operator[](int idx) {
     if (idx >= 0) {
-      if (idx >= (int) len_) {
+      if (idx >= (int)len_) {
         return *(buf_ + len_);
       }
       return *(buf_ + idx);
     } else { /* minus index supported */
-      if (abs(idx) > (int) len_) {
+      if (abs(idx) > (int)len_) {
         return *(buf_ + len_);
       } else {
         return *(buf_ + len_ + idx);
@@ -282,7 +284,7 @@ public:
   }
 
   bool operator<(const char *other) const {
-    return memcmp(buf_, other, std::min((size_t) len_, strlen(other))) == -1;
+    return memcmp(buf_, other, std::min((size_t)len_, strlen(other))) == -1;
   }
 
   bool operator>(const DynamicString &other) const {
@@ -290,7 +292,7 @@ public:
   }
 
   bool operator>(const char *other) const {
-    return memcmp(buf_, other, std::min((size_t) len_, strlen(other))) == 1;
+    return memcmp(buf_, other, std::min((size_t)len_, strlen(other))) == 1;
   }
 
 private:
@@ -308,8 +310,8 @@ bool CanConvertToInt64(const std::string &str, int64_t &val);
 
 bool CanConvertToInt32(const std::string &str, int &val);
 
-bool CanConvertToUInt64(const std::string& str, uint64_t& val);
+bool CanConvertToUInt64(const std::string &str, uint64_t &val);
 
-bool CanConvertToDouble(const std::string& str, double& val);
+bool CanConvertToDouble(const std::string &str, double &val);
 
 #endif  // __STR_H__

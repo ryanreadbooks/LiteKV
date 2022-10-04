@@ -2,7 +2,7 @@
 #include <typeinfo>
 
 size_t ValueObject::Serialize(std::vector<char> &buf) {
-  if (ptr == nullptr) {
+  if (type != OBJECT_INT && ptr == nullptr) {
     return 0;
   }
   /* we encode this value as variable integer */
@@ -12,15 +12,13 @@ size_t ValueObject::Serialize(std::vector<char> &buf) {
     uint8_t enc_len = EncodeVarSignedInt64(ToInt64(), tmp);
     buf.insert(buf.end(), tmp, tmp + enc_len);
   } else {
-    if (type == OBJECT_STRING || type == OBJECT_LIST) {
+    if (type == OBJECT_HASH) {
+      reinterpret_cast<HashDict *>(ptr)->Serialize(buf);
+    } else if (type == OBJECT_SET) {
+      reinterpret_cast<HashSet *>(ptr)->Serialize(buf);
+    } else {
       Serializable *parent = reinterpret_cast<Serializable *>(ptr);
       parent->Serialize(buf);
-    } else {
-      if (type == OBJECT_HASH) {
-        reinterpret_cast<HashDict *>(ptr)->Serialize(buf);
-      } else if (type == OBJECT_SET) {
-        reinterpret_cast<HashSet *>(ptr)->Serialize(buf);
-      }
     }
   }
   return buf.size();

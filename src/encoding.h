@@ -69,4 +69,12 @@ int64_t DecodeVarSignedInt64(unsigned char* buf);
  */
 void EncodeFixed64BitInteger(int64_t value, unsigned char* buf);
 
+/**
+ * @brief decode from a 8-bytes buffer to get a 64-bit integer
+ * little endian
+ * @param buf encoded buffer
+ * @return int64_t decoded 64-bit integer
+ */
+int64_t DecodeFixed64BitInteger(unsigned char* buf);
+
 #endif  // __ENCODING_H__

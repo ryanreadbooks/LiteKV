@@ -218,7 +218,7 @@ int KVContainer::KeyExists(const std::vector<std::string> &keys) {
 size_t KVContainer::NumItems() const {
   size_t cnt = 0;
   for (const Bucket &bucket : bucket_) {
-    LockGuard bk_lck(bucket.mtx);
+    // LockGuard bk_lck(bucket.mtx);
     cnt += bucket.content.size();
   }
   return cnt;
@@ -936,7 +936,7 @@ void KVContainer::Snapshot(std::vector<char> &buf) {
   entry_buf.reserve(64);
 
   for (const Bucket &bucket : bucket_) {
-    for (const std::pair<Key, ValueObjectPtr>& item : bucket.content) {
+    for (const auto& item : bucket.content) { // auto = std::pair<Key, ValueObjectPtr>
       const Key &key = item.first;
       std::string std_str_key = key.ToStdString();
       const ValueObjectPtr &value = item.second;
