@@ -24,6 +24,9 @@ make
 ### Supported modes
 * Pub/Sub
 
+### Supported persistence
+* AOF
+* LiteKV Binary Format (in branch [experimental](https://github.com/ryanreadbooks/LiteKV/tree/experimental))
 
 ### Supported Commands
 
