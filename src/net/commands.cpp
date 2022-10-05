@@ -64,6 +64,8 @@ std::unordered_map<std::string, CommandHandler> Engine::sOpCommandMap = {
     {"publish",   PubSubPublishCommand},        /* publish a message to specific channel */
     {"subscribe", PubSubSubscribeCommand},      /* subscribe to specific channels */
     {"unsubscribe", PubSubUnsubscribeCommand},  /* unsubscribe from specific channels */
+    /* save operations */
+    {"bgsave", BgsaveCommand}             /* dump binary data into file in background  */
 };
 
 static int sEvictPolicy = EVICTION_POLICY_RANDOM;
@@ -1052,3 +1054,14 @@ std::string PubSubUnsubscribeCommand(__PARAMETERS_LIST) {
   return ss.str();
 }
 
+std::string SaveCommand(__PARAMETERS_LIST) { return ""; }
+
+// TODO, do some checkings
+std::string BgsaveCommand(__PARAMETERS_LIST) {
+  CheckSyntaxHelper(cmds, 0, 0, false, 'bgsave');
+  // TODO we need to check success or not
+  // TODO make sure dumpfile name comes from config
+  return LiteKVBackgroundSave("dump.lkvdb", params->server, holder)
+             ? PackStringMsgReply("Background saving started")
+             : PackStringMsgReply("Background saving failed starting");
+}

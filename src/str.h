@@ -85,7 +85,12 @@ public:
 
   inline const char *Data() const { return buf_; }
 
-  std::string ToStdString() const { return std::string(buf_); }
+  std::string ToStdString() const {
+    if (buf_) {
+      return std::string(buf_);
+    }
+    return std::string();
+  }
 
   bool operator==(const StaticString &other) const {
     return strcmp(buf_, other.buf_) == 0 && len_ == other.len_;
@@ -233,7 +238,12 @@ public:
 
   size_t Serialize(std::vector<char> &buf) const override;
 
-  inline std::string ToStdString() const { return std::string(buf_, len_); }
+  inline std::string ToStdString() const {
+    if (buf_) {
+      return std::string(buf_, len_);
+    }
+    return std::string();
+  }
 
   int64_t TryConvertToInt64() const;
 

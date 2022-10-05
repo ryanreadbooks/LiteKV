@@ -11,6 +11,7 @@
 #include <sstream>
 #include <vector>
 #include <sys/epoll.h>
+#include <unistd.h>
 
 #include "buffer.h"
 #include "time_event.h"
@@ -111,6 +112,7 @@ struct Session {
     read_buf.Reset();
     write_buf.Reset();
     watched = false;
+    close(fd);
   }
 
   void SetRead() {
@@ -158,6 +160,8 @@ struct EventLoop {
 
   bool RemoveTimeEvent(long id);
 
+  void Stop();
+
 };
 
 class Epoller {
@@ -181,6 +185,10 @@ public:
   bool ModifySession(Session *sev);
 
   bool DetachSession(Session *sev);
+
+  int GetFd() const { return epfd_; }
+
+  void Stop();
 
 private:
   int epfd_ = -1;

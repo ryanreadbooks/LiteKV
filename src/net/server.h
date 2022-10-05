@@ -9,6 +9,7 @@
 #include "addr.h"
 #include "net.h"
 #include "commands.h"
+#include "../config.h"
 
 constexpr int NET_READ_BUF_SIZE = 1024 * 64;
 
@@ -28,8 +29,17 @@ public:
   }
 };
 
+// FIXME: this is a temporary plan, may be we should not ignore SIGCHLD
+class InitIgnoreSigchild {
+public:
+  InitIgnoreSigchild() {
+    ::signal(SIGCHLD, SIG_IGN);
+  }
+};
+
 /* global InitIgnoreSigpipe instance to ignore SIGPIPE signal */
 static InitIgnoreSigpipe sIgnoreSIGPIPEIniter;
+static InitIgnoreSigchild sIgnoreSIGCHLDIniter;
 
 class Server {
 public:
@@ -57,6 +67,8 @@ public:
   std::list<SessionPtr>& GetSubscriptionSessions(const std::string& chan_name) {
     return subscription_sessions_[chan_name];
   }
+
+  void StopServeSockets();
 
 private:
   void InitListenSession();
