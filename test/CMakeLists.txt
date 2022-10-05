@@ -34,6 +34,5 @@ add_test_exec_with_args(test_config config_unittest "test_config.cpp" "${LITEKV_
 add_test_exec_with_args(test_appendable_file appendable_file_unittest "test_appendable_file.cpp" "${LITEKV_SRC}" "${LIBS}" "${CMAKE_CURRENT_SOURCE_DIR}/test.aof")
 add_test_exec(test_time_event time_event_unittest "test_time_event.cpp" "${LITEKV_SRC}" "${LIBS}")
 add_test_exec(test_skiplist skiplist_unittest "test_skiplist.cpp" "${LITEKV_SRC}" "${LIBS}")
-add_test_exec(test_encoding encoding_unittest "test_encoding.cpp" "${LITEKV_SRC}" "${LIBS}")
 add_test_exec(test_serializable serializable_unittest "test_serializable.cpp" "${LITEKV_SRC}" "${LIBS}")
 add_test_exec(test_lkvdb lkvdb_unittest "test_lkvdb.cpp" "${LITEKV_SRC}" "${LIBS}")
