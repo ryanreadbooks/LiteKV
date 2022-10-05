@@ -1,16 +1,9 @@
 #include <gtest/gtest.h>
-#include <algorithm>
-#include <fstream>
 #include <iostream>
-#include <thread>
 #include <vector>
 #include "../src/net/net.h"
 #include "../src/core.h"
-#include "../src/dlist.h"
-#include "../src/encoding.h"
-#include "../src/hashdict.h"
-#include "../src/hashset.h"
-#include "../src/str.h"
+
 
 unsigned char buf[12] = {0x0b, 0x68, 0x65, 0x6c, 0x6c, 0x6f, 0x20, 0x77, 0x6f, 0x72, 0x6c, 0x64};
 
@@ -82,6 +75,7 @@ TEST(SerializableTest, HashDictTest) {
   std::ofstream ofs("tmp", std::ios::out | std::ios::trunc);
   ofs.write(bin.data(), bin.size());
   ofs.close();
+  unlink("tmp");
 }
 
 TEST(SerializableTest, HashSetTest) {
@@ -119,6 +113,7 @@ TEST(SerializableTest, HashSetTest) {
   std::ofstream ofs("tmp_hs", std::ios::out | std::ios::trunc);
   ofs.write(bin.data(), bin.size());
   ofs.close();
+  unlink("tmp_hs");
 }
 
 TEST(SerializableTest, KVContainerTest) {
@@ -190,6 +185,25 @@ TEST(SerializableTest, LKVDbLoadTest) {
   EXPECT_STREQ(vec[13].ToStdString().c_str(), "3");
   EXPECT_STREQ(vec[14].ToStdString().c_str(), "Number of elements in set:");
   EXPECT_STREQ(vec[15].ToStdString().c_str(), "8");
+
+  unlink("dump.lkvdb");
+}
+
+TEST(SerializableTest, EmptyKeyTest) {
+  KVContainer kv;
+  int errcode;
+  kv.SetString("hello", "world");
+  kv.SetInt("int1", 100362);
+  kv.SetString("", "");
+  kv.SetString("wow", "");
+  std::vector<char> bin;
+  kv.Snapshot(bin);
+
+  // save
+  LiteKVSave("dump.lkvdb", bin);
+
+  EventLoop loop;
+  LiteKVLoad("dump.lkvdb", &kv, &loop, LoadCallback);
 }
 
 int main(int argc, char** argv) {

@@ -36,3 +36,4 @@ add_test_exec(test_time_event time_event_unittest "test_time_event.cpp" "${LITEK
 add_test_exec(test_skiplist skiplist_unittest "test_skiplist.cpp" "${LITEKV_SRC}" "${LIBS}")
 add_test_exec(test_encoding encoding_unittest "test_encoding.cpp" "${LITEKV_SRC}" "${LIBS}")
 add_test_exec(test_serializable serializable_unittest "test_serializable.cpp" "${LITEKV_SRC}" "${LIBS}")
+add_test_exec(test_lkvdb lkvdb_unittest "test_lkvdb.cpp" "${LITEKV_SRC}" "${LIBS}")

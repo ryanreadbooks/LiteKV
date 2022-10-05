@@ -17,9 +17,11 @@
 #include "hashdict.h"
 #include "hashset.h"
 #include "net/net.h"
+#include "net/server.h"
 
 class KVContainer;
 class EventLoop;
+class Server;
 
 #define LKVDB_MAGIC_NUMBER "LITEKV"
 #define LKVDB_VERSION 1
@@ -84,16 +86,21 @@ private:
  *
  * @param dst filename of destination
  * @param buf buffer to be saved
+ * @return true save succeed
+ * @return false save failed
  */
-void LiteKVSave(const std::string& dst, const std::vector<char>& buf);
+bool LiteKVSave(const std::string& dst, const std::vector<char>& buf);
 
 /**
  * @brief Save the buf content in background process
  *
  * @param dst filename of destination
- * @param buf buffer to be saved
+ * @param server pointer to Server instance
+ * @param holder pointer to KVContainer instance
+ * @return true save succeed
+ * @return false save failed
  */
-void LiteKVBackgroundSave(const std::string& dst, const std::vector<char>& buf);
+bool LiteKVBackgroundSave(const std::string& dst, Server* server, KVContainer* holder);
 
 /**
  * @brief Load the content from source src

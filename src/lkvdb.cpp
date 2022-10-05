@@ -1,3 +1,4 @@
+#include <cassert>
 #include "lkvdb.h"
 
 #define LKV_NOT_RECOGNIZED_MSG "LiteKV binary format not recognized. Parsing exited.\n"
@@ -8,24 +9,24 @@
     return;                              \
   }
 
-#define AddTimerEventToKey()                                                \
-  do {                                                                      \
-    sExpiresMap[std_key] = loop->AddTimeEvent(interval,                     \
-                                              [&key, &std_key, holder]() {  \
-                                                holder->Delete(Key(key));   \
-                                                sExpiresMap.erase(std_key); \
-                                              },                            \
-                                              1);                           \
+#define AddTimerEventToKey()                            \
+  do {                                                  \
+    sExpiresMap[std_key] = loop->AddTimeEvent(interval, \
+      [&key, &std_key, holder]() {                      \
+        holder->Delete(Key(key));                       \
+        sExpiresMap.erase(std_key);                     \
+      },                                                \
+      1);                                               \
   } while (0)
 
-void LiteKVSave(const std::string& dst, const std::vector<char>& buf) {
-  if (dst.empty()) return;
+bool LiteKVSave(const std::string& dst, const std::vector<char>& buf) {
+  if (dst.empty()) return false;
   std::string tmp_dst = "tmp_" + dst;
   std::ofstream ofs(tmp_dst, std::ios::trunc | std::ios::out); /* always truncate existing file */
 
   if (!ofs.is_open()) {
     std::cerr << "Can not create file " << tmp_dst << " for lkvdb persistence\n";
-    return;
+    return false;
   }
 
   /* magic number and version come first */
@@ -39,11 +40,41 @@ void LiteKVSave(const std::string& dst, const std::vector<char>& buf) {
   ofs.flush();
   ofs.close();
 
-  rename(tmp_dst.c_str(), dst.c_str());
+  int ret = rename(tmp_dst.c_str(), dst.c_str());
+  if (ret == -1) {
+    std::cerr << "Save " << dst << " failed. (" << strerror(errno) << ")\n";
+    return false;
+  }
+  return true;
 }
 
-void LiteKVBackgroundSave(const std::string& dst, const std::vector<char>& buf) {
+bool LiteKVBackgroundSave(const std::string& dst, Server* const server, KVContainer* holder) {
+  static pid_t child_pid = -1;
   /* we use fork to perform background save */
+  if (!holder) return false;
+  if (dst.empty()) return false;
+  child_pid = fork();
+  if (child_pid == 0) {
+    /* child here */
+    /* close all sockets on child proc */
+    assert(server != nullptr);
+    server->StopServeSockets(); // FIXME how to close all sockets for child without affecting parent?
+    std::vector<char> binary;
+    binary.reserve(2048);
+    holder->Snapshot(binary);
+    bool result = LiteKVSave(dst, binary);
+    /* child process exit */
+    exit(result ? 0 : 1);
+  } else {
+    /* parent here */
+    if (child_pid == -1) {
+      /* fork error */
+      std::cerr << "Can not fork child for background saving. (" << strerror(errno) << ")\n";
+      return false;
+    }
+    std::cout << "Background saving started by child-" << child_pid << '\n';
+    return true;
+  }
 }
 
 static void Advance(char*& cursor, size_t& remain, size_t step) {
@@ -75,7 +106,7 @@ static uint64_t DecodeInteger(char*& cursor, size_t& remain) {
 static StaticString DecodeStaticString(char*& cursor, size_t& remain) {
   uint64_t str_len = DecodeInteger(cursor, remain);
   if (str_len == 0 || remain < str_len) {
-    return StaticString();
+    return StaticString("");
   }
   /* copy the next str_len bytes */
   StaticString ans(cursor, str_len);
@@ -208,8 +239,6 @@ void LiteKVLoad(const std::string& src, KVContainer* holder, EventLoop* loop,
       std::cerr << LKV_NOT_RECOGNIZED_MSG;
       return;
     }
-    std::cout << "=========\n";
-    std::cout << "type = " << type << '\n';
 
     /* then comes expiration flag */
     CHECK_REMAIN_BYTES(1);
@@ -227,9 +256,6 @@ void LiteKVLoad(const std::string& src, KVContainer* holder, EventLoop* loop,
     /* key comes first, variable length appears first */
     StaticString key = DecodeStaticString(cursor, remain);
     std::string std_key = key.ToStdString();
-    if (!key.Empty()) {
-      std::cout << "Key is " << key << '\n';
-    }
 
     /* then comes value, interpreting it depending on its type */
     uint64_t current = GetCurrentMs();
@@ -243,13 +269,11 @@ void LiteKVLoad(const std::string& src, KVContainer* holder, EventLoop* loop,
           /* set timer to expire this key */
           AddTimerEventToKey();
         }
-        std::cout << "val = " << val << '\n';
       }
     } else if (type == LKVBD_TYPE_STRING) {
       std::string str = DecodeStdString(cursor, remain);
       if ((expire_flag && exp_timestamp > current) || !expire_flag) {
         holder->SetString(key, str);
-        std::cout << "str = " << str << '\n';
         if (expire_flag) {
           AddTimerEventToKey();
         }
@@ -260,9 +284,7 @@ void LiteKVLoad(const std::string& src, KVContainer* holder, EventLoop* loop,
       if ((expire_flag && exp_timestamp > current) || !expire_flag) {
         for (auto& item : li.RangeAsStdStringVector()) {
           holder->RightPush(key, item, errcode);
-          std::cout << item << ", ";
         }
-        std::cout << '\n';
         if (expire_flag) {
           AddTimerEventToKey();
         }
@@ -272,10 +294,8 @@ void LiteKVLoad(const std::string& src, KVContainer* holder, EventLoop* loop,
       DecodeHashDict(cursor, remain, hd);
       if ((expire_flag && exp_timestamp > current) || !expire_flag) {
         for (auto& item : hd.AllEntries()) {
-          std::cout << *(item->key) << " |-> " << *(item->value) << ", ";
           holder->HashUpdateKV(key, *(item->key), *(item->value), errcode);
         }
-        std::cout << '\n';
         if (expire_flag) {
           AddTimerEventToKey();
         }
@@ -286,9 +306,7 @@ void LiteKVLoad(const std::string& src, KVContainer* holder, EventLoop* loop,
       if ((expire_flag && exp_timestamp > current) || !expire_flag) {
         for (auto& item : hs.AllEntries()) {
           holder->SetAddItem(key, *(item->key), errcode);
-          std::cout << *(item->key) << ' ';
         }
-        std::cout << '\n';
         if (expire_flag) {
           AddTimerEventToKey();
         }
@@ -306,7 +324,6 @@ void LiteKVLoad(const std::string& src, KVContainer* holder, EventLoop* loop,
       std::cerr << LKV_NOT_RECOGNIZED_MSG;
       return;
     }
-    std::cout << "+++++++++\n";
     if (callback) {
       callback(len, idx);
     }

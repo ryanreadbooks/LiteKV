@@ -41,6 +41,7 @@ static const char *kCRLF = "\r\n";
 class Server;                 /* in server.h */
 struct OptionalHandlerParams;  /* in server.h */
 class AppendableFile;         /* in persistence.h */
+class KVContainer;            /* in core.h */
 
 /* the parameters list for `CommandHandler` function */
 #define PARAMETERS_LIST EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool, Session*, OptionalHandlerParams*
@@ -197,6 +198,11 @@ std::string PubSubPublishCommand(PARAMETERS_LIST);
 std::string PubSubSubscribeCommand(PARAMETERS_LIST);
 
 std::string PubSubUnsubscribeCommand(PARAMETERS_LIST);
+
+/* save database commands */
+std::string SaveCommand(PARAMETERS_LIST);
+
+std::string BgsaveCommand(PARAMETERS_LIST);
 
 #undef PARAMETERS_LIST
 

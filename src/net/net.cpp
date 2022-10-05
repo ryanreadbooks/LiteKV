@@ -68,6 +68,14 @@ void EventLoop::Loop() {
   }
 }
 
+void EventLoop::Stop() {
+  if (epoller == nullptr) {
+    return;
+  }
+  epoller->Stop();
+  stopped.store(true, std::memory_order_relaxed);
+}
+
 TimeEvent* EventLoop::AddTimeEvent(uint64_t interval, std::function<void ()> callback, int count) const {
   return tev_holder->CreateTimeEvent(interval, std::move(callback), count);
 }
@@ -148,4 +156,8 @@ bool Epoller::DetachSession(Session *sev) {
     sev->watched = false;
   }
   return ans == 0;
+}
+
+void Epoller::Stop() {
+  close(epfd_);
 }
