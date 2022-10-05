@@ -47,9 +47,9 @@ bool Server::HasSubscriptionChannel(const std::string &chan_name) {
 }
 
 void Server::StopServeSockets() {
+  loop_->Stop();  /* we also need to stop the event loop, this go first */
   FreeListenSession();
   FreeClientSessions();
-  loop_->Stop();  /* we also need to stop the event loop */
 }
 
 void Server::InitListenSession() {

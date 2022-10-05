@@ -44,7 +44,7 @@ class AppendableFile;         /* in persistence.h */
 class KVContainer;            /* in core.h */
 
 /* the parameters list for `CommandHandler` function */
-#define PARAMETERS_LIST EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool, Session*, OptionalHandlerParams*
+#define PARAMETERS_LIST EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool, Config*, Session*, OptionalHandlerParams*
 
 /* Not all CommandHandler function instance use all parameters */
 typedef std::string (*CommandHandler)(PARAMETERS_LIST);

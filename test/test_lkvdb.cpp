@@ -188,6 +188,7 @@ TEST(LKVDBTEST, TestLKVDB) {
     EXPECT_EQ(cnt, elements.size());
     EXPECT_EQ(cnt, rev.size());
   }
+  unlink(dumpfile.c_str());
 }
 
 int main(int argc, char** argv) {

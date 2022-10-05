@@ -265,7 +265,7 @@ std::string Engine::HandleCommand(EventLoop *loop, CommandCache &cmds, bool sync
   }
   /* sync to control whether sync commands to appending_ for persistence */
   /* sync == true: sync; flag == false: no sync */
-  return sOpCommandMap[opcode](loop, container_, appending_, cmds, sync, sess, params);
+  return sOpCommandMap[opcode](loop, container_, appending_, cmds, sync, config_, sess, params);
 }
 
 bool Engine::OpCodeValid(const std::string &opcode) {
@@ -299,7 +299,7 @@ void Engine::UpdateMemInfo() {
 }
 
 #define __PARAMETERS_LIST EventLoop *loop, KVContainer *holder, AppendableFile *appendable, \
-                          const CommandCache &cmds, bool sync, Session* sess, OptionalHandlerParams* params
+                          const CommandCache &cmds, bool sync, Config* config, Session* sess, OptionalHandlerParams* params
 
 std::string OverviewCommand(__PARAMETERS_LIST) {
   /* usage: overview */
@@ -445,7 +445,7 @@ std::string ExpireAtCommand(__PARAMETERS_LIST) {
     int64_t now = GetCurrentSec();
     int64_t interval = std::max(unix_sec - now, 0l);  /* seconds */
     const_cast<CommandCache &>(cmds).argv[2] = std::to_string(interval); /* force modification to const */
-    return ExpireCommand(loop, holder, appendable, cmds, sync, sess, params);
+    return ExpireCommand(loop, holder, appendable, cmds, sync, config, sess, params);
   }
   return kInvalidIntegerMsg;
 }
@@ -1056,12 +1056,9 @@ std::string PubSubUnsubscribeCommand(__PARAMETERS_LIST) {
 
 std::string SaveCommand(__PARAMETERS_LIST) { return ""; }
 
-// TODO, do some checkings
 std::string BgsaveCommand(__PARAMETERS_LIST) {
   CheckSyntaxHelper(cmds, 0, 0, false, 'bgsave');
-  // TODO we need to check success or not
-  // TODO make sure dumpfile name comes from config
-  return LiteKVBackgroundSave("dump.lkvdb", params->server, holder)
+  return LiteKVBackgroundSave(config->GetLkvdbDumpFilename(), params->server, holder)
              ? PackStringMsgReply("Background saving started")
              : PackStringMsgReply("Background saving failed starting");
 }

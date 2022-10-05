@@ -113,6 +113,9 @@ void Config::Init(std::unordered_map<std::string, std::string> &configs) {
         dump_flush_interval_ = CONFIG_DEFAULT_DUMP_FLUSH_INTERVAL;
       }
       DISPLAY_CONFIG(key, dump_flush_interval_);
+    } else if (key == "lkvdb-dumpfile") {
+      lkvdb_dumpfile_ = value;
+      DISPLAY_CONFIG(key, lkvdb_dumpfile_);
     } else if (key == "lru-enable") {
       int b = 0;
       if (!CanConvertToInt32(value, b)) {

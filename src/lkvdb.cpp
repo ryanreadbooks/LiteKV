@@ -43,11 +43,13 @@ bool LiteKVSave(const std::string& dst, const std::vector<char>& buf) {
   int ret = rename(tmp_dst.c_str(), dst.c_str());
   if (ret == -1) {
     std::cerr << "Save " << dst << " failed. (" << strerror(errno) << ")\n";
+    unlink(tmp_dst.c_str());
     return false;
   }
   return true;
 }
 
+// TODO, we need to check here if there is already a background saving process running
 bool LiteKVBackgroundSave(const std::string& dst, Server* const server, KVContainer* holder) {
   static pid_t child_pid = -1;
   /* we use fork to perform background save */
