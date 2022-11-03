@@ -28,6 +28,7 @@ set(SRC
     src/valueobject.cpp
     src/hashdict.cpp
     src/hashset.cpp
+    src/skiplist.cpp
     src/persistence.cpp
     src/config.cpp
     src/encoding.cpp

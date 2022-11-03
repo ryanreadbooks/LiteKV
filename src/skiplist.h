@@ -4,125 +4,81 @@
 #include <cassert>
 #include <cctype>
 #include <cstdint>
+#include <cstring>
+#include <random>
 
 #include "str.h"
 #include "valueobject.h"
 
-#define SKIPLIST_MAX_LEVEL 32
+static constexpr uint8_t kMaxLevel = 32;
 
-/**
- *
- * level definition:
- *  |   next[3] -> level 4
- *  |   next[2] -> level 3
- *  |   next[1] -> level 2
- * _|_  next[0] -> level 1
- *
- */
+struct SKNode {
+  int64_t score = 0l;
+  DynamicString data;
 
-/**
- * @brief template SkiplistNode implementation
- *
- * @tparam ElemT
- */
-template <typename ElemT>
-struct SkiplistNode {
-  ElemT elem;
-  /* pointer to the previous SkiplistNode */
-  SkiplistNode* prev = nullptr;
-  /* array of pointers to next SkiplistNodes */
-  SkiplistNode** next = nullptr;
-  /* the level of this node, level starting from 1 */
-  uint8_t level;
+  SKNode* prev = nullptr;
+  SKNode** nexts = nullptr;
+  const uint8_t level = 1;
 
-  explicit SkiplistNode(const ElemT& elem, uint8_t level = 1)
-      : elem(elem), next(new SkiplistNode*[level]), level(level) {}
+  SKNode() = delete;
 
-  explicit SkiplistNode(ElemT&& elem, uint8_t level = 1)
-      : elem(std::move(elem)), next(new SkiplistNode*[level]), level(level) {}
+  explicit SKNode(int64_t score, const DynamicString& data, uint8_t level = 1);
 
-  /**
-   * @brief free allocated space
-   *
-   */
-  ~SkiplistNode() {
-    if (next) {
-      delete[] next;
-      next = nullptr;
-    }
-  }
+  explicit SKNode(int64_t score, DynamicString&& data, uint8_t level = 1);
 
-  /**
-   * @brief Set node at level n
-   *
-   * @param n the level number
-   * @param node the node to be set at level n
-   */
-  void SetNextNodeAtLevel(uint8_t n, SkiplistNode* node) {
-    assert(n < SKIPLIST_MAX_LEVEL);
-    next[n] = node;
-  }
+  ~SKNode();
 
-  /**
-   * @brief Get the node at level n
-   *
-   * @param n the level number
-   * @return SkiplistNode* the node at level n
-   */
-  SkiplistNode* GetNextNodeAtLevel(uint8_t n) {
-    assert(n < SKIPLIST_MAX_LEVEL);
-    return next[n];
+  bool operator==(const SKNode& b) const {
+    return this->data.Length() == b.data.Length() &&
+           strncmp(this->data.Data(), b.data.Data(), this->data.Length()) == 0;
   }
 };
 
 /**
- * @brief Skiplist implementation
- *
+ * Comparator for SKNode
  */
-template <typename ElemT, typename Compare>
+struct SKNodeComparator {
+  bool operator()(const SKNode& a, const SKNode& b) const {
+    if (a.score == b.score) {
+      return strncmp(a.data.Data(), b.data.Data(), std::min(a.data.Length(), b.data.Length())) < 0;
+    }
+    return a.score < b.score;
+  }
+
+  bool operator()(int64_t score, const DynamicString& data, const SKNode& b) const {
+    if (score == b.score) {
+      return strncmp(data.Data(), b.data.Data(), std::min(data.Length(), b.data.Length())) < 0;
+    }
+    return score < b.score;
+  }
+};
+
 class Skiplist {
 public:
-  typedef ElemT elem_type;
+  Skiplist();
 
-public:
-  explicit Skiplist();
+  Skiplist(const Skiplist&) = delete;
 
-  ~Skiplist();
+  Skiplist& operator=(const Skiplist&) = delete;
 
-  bool Insert(const elem_type& elem);
+  Skiplist(Skiplist&&) = delete;
 
-  bool Insert(elem_type&& elem);
+  Skiplist(std::initializer_list<SKNode> list);
 
-  template <typename... Args>
-  bool Emplace(Args&&... args);
+  bool Insert(int64_t score, const DynamicString& target);
 
-  bool Exists() const;
+  bool Exists(int64_t score, const DynamicString& target);
 
-  bool Remove();
-
-  size_t Size() const { return count_; }
+  bool Remove(int64_t score, const DynamicString& target);
 
 private:
-  int GenRandomLevel();
+  SKNode* Find(int64_t, const DynamicString& target);
 
 private:
-  SkiplistNode<ElemT>* head_ = nullptr;
-  SkiplistNode<ElemT>* tail_ = nullptr;
-  Compare comp_;
-  uint8_t cur_max_level_;
-  size_t count_;
+  SKNode* head_ = nullptr;
+  size_t count_ = 0;
+  uint8_t cur_max_level_ = 0;
+  SKNodeComparator compare_;
 };
-
-#define Template template<typename ElemT, typename Compare>
-
-Template bool Skiplist<ElemT, Compare>::Insert(const elem_type& elem) { return false; }
-
-Template bool Skiplist<ElemT, Compare>::Insert(elem_type&& elem) { return false; }
-
-Template bool Skiplist<ElemT, Compare>::Exists() const { return false; }
-
-Template bool Skiplist<ElemT, Compare>::Remove() { return false; }
-
-#undef Template
 
 #endif  // __SKIPLIST_H__
