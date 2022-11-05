@@ -290,19 +290,38 @@ public:
   }
 
   bool operator<(const DynamicString &other) const {
-    return memcmp(buf_, other.buf_, std::min(len_, other.len_)) == -1;
+    int ans1 = memcmp(buf_, other.buf_, std::min(len_, other.len_));
+    if (ans1 == 0) {
+      /* further check */
+      return len_ < other.len_;
+    }
+    return ans1 < 0;
   }
 
   bool operator<(const char *other) const {
-    return memcmp(buf_, other, std::min((size_t)len_, strlen(other))) == -1;
+    size_t len2 = strlen(other);
+    int ans1 = memcmp(buf_, other, std::min((size_t)len_, len2));
+    if (ans1 == 0) {
+      return len_ < len2;
+    }
+    return ans1 < 0;
   }
 
   bool operator>(const DynamicString &other) const {
-    return memcmp(buf_, other.buf_, std::min(len_, other.len_)) == 1;
+    int ans1 = memcmp(buf_, other.buf_, std::min(len_, other.len_));
+    if (ans1 == 0) {
+      return len_ > other.len_;
+    }
+    return ans1 > 0;
   }
 
   bool operator>(const char *other) const {
-    return memcmp(buf_, other, std::min((size_t)len_, strlen(other))) == 1;
+    size_t len2 = strlen(other);
+    int ans1 = memcmp(buf_, other, std::min((size_t)len_, len2));
+    if (ans1 == 0) {
+      return len_ > len2;
+    }
+    return ans1 > 0;
   }
 
 private:
