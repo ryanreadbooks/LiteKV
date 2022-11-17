@@ -50,6 +50,7 @@ int main(int argc, char **argv) {
     engine.RestoreFromAppendableFile(&loop, history);
     history->SetAutoFlush(true);
   }
+  // TODO: if no aof specified, then try lkvdb restore
 
   auto begin = GetCurrentMs();
   auto spent = GetCurrentMs() - begin;

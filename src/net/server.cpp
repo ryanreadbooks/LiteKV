@@ -1,10 +1,10 @@
 #include <iostream>
 #include <sstream>
 #include <cstring>
-#include <errno.h>
+#include <cerrno>
 #include <sys/epoll.h>
 #include <sys/socket.h>
-#include <assert.h>
+#include <cassert>
 #include "server.h"
 #include "utils.h"
 #include "protocol.h"
@@ -44,6 +44,12 @@ void Server::RemoveSessionFromSubscription(const std::string& chan_name, Session
 
 bool Server::HasSubscriptionChannel(const std::string &chan_name) {
   return subscription_sessions_.find(chan_name) != subscription_sessions_.end();
+}
+
+void Server::StopServeSockets() {
+  loop_->Stop();  /* we also need to stop the event loop, this go first */
+  FreeListenSession();
+  FreeClientSessions();
 }
 
 void Server::InitListenSession() {
@@ -87,9 +93,11 @@ void Server::FreeClientSessions() {
   if (!sessions_.empty()) {
     for (auto&& session_pair : sessions_) {
       auto& sess = session_pair.second;
+      loop_->epoller->DetachSession(sess.get());
       close(sess->fd);
     }
   }
+  sessions_.clear();
 }
 
 void Server::AcceptProc(Session *session, bool &closed) {

@@ -125,3 +125,25 @@ HEntryVal &HashDict::At(const HEntryKey &key) {
   }
   throw std::out_of_range(key.ToStdString() + " not found in hashtable");
 }
+
+size_t HashDict::Serialize(std::vector<char> &buf) const {
+  size_t len = Count();
+  if (len == 0) {
+    return 0;
+  }
+  unsigned char len_enc_buf[10] = {0};
+  uint8_t len_enc_size = EncodeVarUnsignedInt64(len, len_enc_buf);
+  /* put number of entry first */
+  buf.insert(buf.end(), len_enc_buf, len_enc_buf + len_enc_size);
+
+  // std::vector<char> tmp_buf_key, tmp_buf_val;
+  // tmp_buf_key.reserve(16);
+  // tmp_buf_val.reserve(16);
+
+  /* iterate every entries and serialize them to binary data */
+  for (auto &entry : AllEntries()) {
+    entry->key->Serialize(buf);
+    entry->value->Serialize(buf);
+  }
+  return buf.size();
+}

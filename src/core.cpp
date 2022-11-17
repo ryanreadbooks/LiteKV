@@ -218,7 +218,7 @@ int KVContainer::KeyExists(const std::vector<std::string> &keys) {
 size_t KVContainer::NumItems() const {
   size_t cnt = 0;
   for (const Bucket &bucket : bucket_) {
-    LockGuard bk_lck(bucket.mtx);
+    // LockGuard bk_lck(bucket.mtx);
     cnt += bucket.content.size();
   }
   return cnt;
@@ -918,3 +918,51 @@ size_t KVContainer::SetGetMemberCount(const Key &key, int &errcode) {
 #undef HashTypeCheckExistAux
 #undef HashTypeGetAllKeysAux
 #undef HashTypeGetCountAux
+
+void KVContainer::Snapshot(std::vector<char> &buf) {
+  /**
+   * entry binary structure
+   * +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+   * | 0xFF | TYPE | EXPIRE FLAG | EXPIRE TIMESTAMP (OPTIONAL) |   KEY   |   VALUE   |   0XFE  |
+   * +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+   * |  1B  |  1B  |     1B     |             8B               |   VAL   |    VAL    |    1B   |
+   * +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+   */
+  size_t entry_cnt = NumItems();  // FIXME: O(n)
+  unsigned char len_buf[8];
+  EncodeFixed64BitInteger(entry_cnt, len_buf);
+  buf.insert(buf.end(), len_buf, len_buf + 8);
+  std::vector<char> entry_buf;
+  entry_buf.reserve(64);
+
+  for (const Bucket &bucket : bucket_) {
+    for (const auto& item : bucket.content) { // auto = std::pair<Key, ValueObjectPtr>
+      const Key &key = item.first;
+      std::string std_str_key = key.ToStdString();
+      const ValueObjectPtr &value = item.second;
+      /* every entry has a start flag: 0xFF */
+      entry_buf.emplace_back(LKVDB_ITEM_START_FLAG);
+      /* put type */
+      entry_buf.emplace_back(char(value->type));
+      /* check if this entry has expiry */
+      if (sExpiresMap.count(std_str_key)) {
+        entry_buf.emplace_back(char(1));
+        /* put expiry timestamp(millisecond) using fixed 8 bytes */
+        uint64_t when = sExpiresMap[std_str_key]->when;
+        unsigned char timestamp_buf[8];
+        EncodeFixed64BitInteger(when, timestamp_buf);
+        entry_buf.insert(entry_buf.end(), timestamp_buf, timestamp_buf + 8);
+      } else {
+        entry_buf.emplace_back(char(0));
+      }
+      /* put key into binary */
+      key.Serialize(entry_buf);
+      /* put value into binary */
+      value->Serialize(entry_buf);
+      /* every entry has an end flag: 0xFE */
+      entry_buf.emplace_back(LKVDB_ITEM_END_FLAG);
+      buf.insert(buf.end(), entry_buf.begin(), entry_buf.end());
+      entry_buf.clear();
+    }
+  }
+}

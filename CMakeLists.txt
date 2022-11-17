@@ -28,8 +28,11 @@ set(SRC
     src/valueobject.cpp
     src/hashdict.cpp
     src/hashset.cpp
+    src/skiplist.cpp
     src/persistence.cpp
     src/config.cpp
+    src/encoding.cpp
+    src/lkvdb.cpp
     src/net/addr.cpp
     src/net/net.cpp
     src/net/server.cpp

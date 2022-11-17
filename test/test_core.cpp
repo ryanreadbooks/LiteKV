@@ -405,6 +405,11 @@ TEST(KVContainerTest, TestHashSet) {
   cout << '\n';
 }
 
+TEST(KVContainerTest, TestEmptyKeyName) {
+  engine.SetInt("", 100);
+  EXPECT_EQ(engine.Get("", errcode)->ToInt64(), 100);
+}
+
 int main(int argc, char *argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

@@ -117,6 +117,15 @@ TEST(DynamicStringTest, BasicTest) {
   EXPECT_TRUE(empty3.Length() == 0 && empty3.Allocated() == 1);
 }
 
+TEST(DynamicStringTest, ComparatorTest) {
+  DynamicString s1("hello");
+  DynamicString s2("hello world");
+  EXPECT_TRUE(s1 < s2);
+
+  DynamicString s3("z");
+  EXPECT_TRUE(s1 < s3);
+}
+
 int main(int argc, char *argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

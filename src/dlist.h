@@ -4,6 +4,8 @@
 #include <vector>
 #include <string>
 #include "str.h"
+#include "serializable.h"
+#include "encoding.h"
 
 class DList;
 
@@ -47,7 +49,7 @@ struct Iterator {
   }
 };
 
-class DList {
+class DList : public Serializable {
 public:
   DList();
 
@@ -92,6 +94,8 @@ public:
   inline Node *Back() const { return tail_; }
 
   void FreeRedundantNodes();
+
+  size_t Serialize(std::vector<char> &buf) const override;
 
 private:
   inline Node *Head() const { return head_; }

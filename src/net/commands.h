@@ -41,9 +41,10 @@ static const char *kCRLF = "\r\n";
 class Server;                 /* in server.h */
 struct OptionalHandlerParams;  /* in server.h */
 class AppendableFile;         /* in persistence.h */
+class KVContainer;            /* in core.h */
 
 /* the parameters list for `CommandHandler` function */
-#define PARAMETERS_LIST EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool, Session*, OptionalHandlerParams*
+#define PARAMETERS_LIST EventLoop *, KVContainer *, AppendableFile *, const CommandCache &, bool, Config*, Session*, OptionalHandlerParams*
 
 /* Not all CommandHandler function instance use all parameters */
 typedef std::string (*CommandHandler)(PARAMETERS_LIST);
@@ -51,6 +52,12 @@ typedef std::string (*CommandHandler)(PARAMETERS_LIST);
 class Engine {
 public:
   explicit Engine(KVContainer *container, Config *config);
+
+  Engine(const Engine &) = delete;
+
+  Engine(Engine &&) = delete;
+
+  Engine &operator=(const Engine &) = delete;
 
   ~Engine();
 
@@ -191,6 +198,11 @@ std::string PubSubPublishCommand(PARAMETERS_LIST);
 std::string PubSubSubscribeCommand(PARAMETERS_LIST);
 
 std::string PubSubUnsubscribeCommand(PARAMETERS_LIST);
+
+/* save database commands */
+std::string SaveCommand(PARAMETERS_LIST);
+
+std::string BgsaveCommand(PARAMETERS_LIST);
 
 #undef PARAMETERS_LIST
 
