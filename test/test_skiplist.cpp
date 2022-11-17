@@ -175,6 +175,17 @@ TEST(SkiplistTest, MixedOperationTest) {
   }
 }
 
+TEST(SkiplistTest, SkipOperatorBracketTest) {
+  Skiplist sk1;
+
+  sk1.Insert(100, DynamicString("rier"));
+  sk1.Insert(200, DynamicString("fuel"));
+  sk1.Insert(500, DynamicString("rice"));
+  std::cout << sk1 << std::endl;
+  sk1.Insert(300, DynamicString("wonder"));
+  // TODO not finish yet
+}
+
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

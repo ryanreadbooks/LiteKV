@@ -44,13 +44,6 @@ Skiplist::Skiplist() : head_(new SKNode(INT64_MIN, DynamicString(""), kMaxLevel)
 
 Skiplist::~Skiplist() {
   /* we need to free all nodes in the skiplist */
-  // SKNode* cur = head_;
-  // std::vector<SKNode*> nodes;
-  // nodes.reserve(count_);
-  // while (cur && cur->nexts) {
-  //   nodes.push_back(cur);
-  //   cur = cur->nexts[0];
-  // }
   std::vector<SKNode*> nodes;
   GatherAllNodes(nodes, true);
   for (auto& node : nodes) {
@@ -93,7 +86,7 @@ bool Skiplist::Insert(int64_t score, const DynamicString& target) {
   SKNode* new_node = new (std::nothrow) SKNode(score, target, level);
   if (new_node == nullptr) return false;
   SKNode* after = cur->nexts[0];
-  /* adjust pointer */
+  /* adjust nexts pointers */
   for (size_t l = 0; l < level; ++l) {
     new_node->nexts[l] = path[l]->nexts[l];
     path[l]->nexts[l] = new_node;
@@ -144,7 +137,7 @@ bool Skiplist::Remove(int64_t score, const DynamicString& target) {
   }
   /* we may need to adjust the current level of the whole skiplist */
   if (del_node->level == cur_max_level_) {
-    /* furthur check */
+    /* further check */
     while (head_->nexts[cur_max_level_ - 1] == nullptr && cur_max_level_ > 0) {
       --cur_max_level_;
     }
@@ -175,7 +168,7 @@ SKNode& Skiplist::operator[](size_t idx) {
   if (idx >= count_ || idx < 0) {
     throw std::out_of_range("skiplist index out of range");
   }
-  /* we should find the corresponding element at idx */
+  /* TODO we should find the corresponding element at idx */
 
   return *head_->nexts[0];
 }
