@@ -26,7 +26,7 @@ make
 
 ### Supported persistence
 * AOF
-* LiteKV Binary Format (in branch [experimental](https://github.com/ryanreadbooks/LiteKV/tree/experimental))
+* LiteKV Binary Format
 
 ### Supported Commands
 
