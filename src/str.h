@@ -100,9 +100,9 @@ public:
     return strcmp(buf_, other.buf_) != 0 && len_ != other.len_;
   }
 
-  bool operator<(const StaticString &other) const { return strcmp(buf_, other.buf_) == -1; }
+  bool operator<(const StaticString &other) const { return strcmp(buf_, other.buf_) < 0; }
 
-  bool operator>(const StaticString &other) const { return strcmp(buf_, other.buf_) == 1; }
+  bool operator>(const StaticString &other) const { return strcmp(buf_, other.buf_) > 0; }
 
   friend std::ostream &operator<<(std::ostream &ss, const StaticString &s) {
     ss << s.Data();
